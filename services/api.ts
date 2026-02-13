@@ -152,14 +152,32 @@ export const API = {
     // 1. Result/Reveal Phase
     if (status === QuizStatus.REVEALED && context) {
         if (context.includes("Correct")) {
-            const winners = [
-                "Excellent work. That is correct.",
-                "Well done. That is accurate.",
-                "Spot on. Points awarded.",
-                "Precisely correct.",
-                "That is the right answer."
+            const shouts = [
+                "YES! THAT IS THE CORRECT ANSWER!",
+                "ABSOLUTELY RIGHT!",
+                "SPOT ON!",
+                "PRECISELY!",
+                "BOOM! YOU GOT IT!",
+                "CORRECT!"
             ];
-            return winners[Math.floor(Math.random() * winners.length)];
+            const compliments = [
+                "Incredible display of knowledge.",
+                "You are operating at maximum efficiency.",
+                "A stellar performance.",
+                "Your logic is undeniable.",
+                "Impressive cognitive processing."
+            ];
+            
+            const shout = shouts[Math.floor(Math.random() * shouts.length)];
+            const compliment = compliments[Math.floor(Math.random() * compliments.length)];
+            
+            // High energy delivery using SSML
+            return `<speak>
+              <prosody volume="x-loud" pitch="+10%">${shout}</prosody> 
+              <break time="500ms"/> 
+              <prosody volume="loud">${compliment}</prosody>
+            </speak>`;
+
         } else if (context.includes("Incorrect")) {
             const losers = [
                 "I am afraid that is incorrect.",

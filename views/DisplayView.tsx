@@ -155,7 +155,13 @@ const DisplayView: React.FC = () => {
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop(); } catch(e) {}
     }
-    if (text) setCommentary(text);
+    
+    // Clean SSML tags from text before displaying
+    if (text) {
+        const cleanText = text.replace(/<[^>]*>/g, '').trim();
+        setCommentary(cleanText);
+    }
+    
     setIsSpeaking(true);
 
     try {
@@ -217,7 +223,8 @@ const DisplayView: React.FC = () => {
            SFX.playLock();
            const played = playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
            if (!played) {
-               setCommentary(`Locked by ${team.name}`);
+               const cleanText = `Locked by ${team.name}`;
+               setCommentary(cleanText);
                setTimeout(() => setCommentary(""), 2000);
            }
        }
