@@ -8,8 +8,8 @@ import { Card, Button, Badge } from '../components/SharedUI';
 import { 
   Settings, RefreshCcw, Zap, Layers, ChevronRight, 
   Forward, AlertTriangle, CheckCircle, BrainCircuit, 
-  MessageSquare, Play, Lock as LockIcon, Eye, Trash2,
-  HelpCircle, Info, Star
+  MessageSquare, Play, Lock as LockIcon, Eye, Star,
+  Info
 } from 'lucide-react';
 
 const AdminView: React.FC = () => {
@@ -17,7 +17,6 @@ const AdminView: React.FC = () => {
   const [updating, setUpdating] = useState(false);
   const [now, setNow] = useState(Date.now());
   const [confirmReset, setConfirmReset] = useState(false);
-  // Fix: Use ReturnType<typeof setTimeout> to avoid NodeJS namespace error in browser environment
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -25,7 +24,7 @@ const AdminView: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  if (loading || !session) return null;
+  if (loading || !session) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"/></div>;
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
 
@@ -61,7 +60,7 @@ const AdminView: React.FC = () => {
 
   const sortedSubmissions = [...session.submissions].sort((a, b) => a.timestamp - b.timestamp);
 
-  const StatusButton = ({ 
+  const ControlButton = ({ 
     status, 
     label, 
     icon: Icon, 
@@ -78,352 +77,278 @@ const AdminView: React.FC = () => {
   }) => {
     const isActive = session.status === status;
     return (
-      <div className="flex flex-col gap-2 flex-1 group">
-        <Button 
-          variant={isActive ? variant : 'secondary'} 
-          onClick={() => performAction(() => API.updateSessionStatus(status))} 
-          disabled={disabled || updating}
-          className={`flex-1 h-20 flex items-center justify-center gap-3 relative transition-all ${
-            isActive ? 'ring-4 ring-offset-2' : 'hover:border-slate-400'
-          }`}
-        >
-          <Icon className={`w-6 h-6 ${isActive ? 'animate-pulse' : ''}`} />
-          <span className="text-lg font-black">{label}</span>
-          {isActive && (
-            <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center border-2 border-slate-900 shadow-md">
-              <CheckCircle className="w-4 h-4 text-emerald-600" />
-            </div>
-          )}
-        </Button>
-        <div className="px-2">
-           <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest text-center group-hover:text-slate-900 transition-colors">
-            {desc}
-           </p>
+      <button
+        onClick={() => performAction(() => API.updateSessionStatus(status))}
+        disabled={disabled || updating}
+        className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 h-28 group ${
+          isActive 
+            ? `bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-50 border-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-500 shadow-md transform scale-[1.02]` 
+            : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 opacity-100 disabled:opacity-50 disabled:cursor-not-allowed'
+        }`}
+      >
+        <div className={`p-2 rounded-full mb-2 ${isActive ? 'bg-white shadow-sm' : 'bg-slate-100'}`}>
+           <Icon className={`w-5 h-5 ${isActive ? `text-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-600` : 'text-slate-500'}`} />
         </div>
-      </div>
+        <span className={`font-black uppercase text-sm ${isActive ? 'text-slate-900' : 'text-slate-600'}`}>{label}</span>
+        <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">{desc}</span>
+        
+        {isActive && (
+          <div className="absolute top-2 right-2">
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-400`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-500`}></span>
+            </span>
+          </div>
+        )}
+      </button>
     );
   };
 
   return (
-    <div className="max-w-[95rem] mx-auto p-8 space-y-8 animate-in fade-in duration-500">
-      <header className="flex justify-between items-center bg-white p-8 rounded-[2.5rem] border-2 border-slate-300 shadow-xl">
-        <div className="flex items-center gap-6">
-          <div className="bg-slate-950 p-4 rounded-2xl shadow-xl">
-            <Settings className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-slate-950 tracking-tight uppercase italic">Quiz Architect</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-slate-700 text-sm font-mono uppercase font-black tracking-widest">
-                Node {session.id}
-              </span>
-              <div className="h-4 w-px bg-slate-200" />
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Live Sync Active</span>
+    <div className="min-h-screen bg-slate-50 p-4 lg:p-8 font-sans">
+      <div className="max-w-[100rem] mx-auto space-y-6">
+        
+        {/* Header */}
+        <header className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col lg:flex-row justify-between items-center gap-6">
+          <div className="flex items-center gap-5 w-full lg:w-auto">
+            <div className="bg-slate-900 p-3 rounded-2xl shadow-lg">
+              <Settings className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Quiz Architect</h1>
+              <div className="flex items-center gap-3 mt-1">
+                <Badge color="slate">Node {session.id.substring(0,8)}</Badge>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-100">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[9px] font-black text-emerald-700 uppercase tracking-widest">Online</span>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-        <div className="flex gap-6 items-center">
-          <Button 
-            variant={confirmReset ? 'danger' : 'ghost'} 
-            onClick={handleReset} 
-            disabled={updating} 
-            className={`font-black border-2 px-8 py-4 text-base transition-all duration-300 ${
-              confirmReset ? 'border-red-600 scale-105 shadow-lg' : 'border-slate-300 hover:bg-slate-50 text-slate-950'
-            }`}
-          >
-            {confirmReset ? <AlertTriangle className="w-5 h-5 mr-3 animate-bounce" /> : <RefreshCcw className="w-5 h-5 mr-3" />}
-            {confirmReset ? 'CONFIRM RESET?' : 'Hard Reset'}
-          </Button>
-          <div className="h-12 w-px bg-slate-200" />
-          <div className="flex flex-col items-end">
-             <span className="text-[10px] font-black text-slate-500 uppercase mb-1 tracking-widest">System Entity</span>
-             <Badge color="green">AURA ONLINE</Badge>
-          </div>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Sidebar: Sequence Deck */}
-        <div className="lg:col-span-3 space-y-6">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-xs font-black text-slate-600 uppercase tracking-[0.3em] flex items-center gap-2">
-              <Layers className="w-4 h-4" /> Sequence Deck
-            </h3>
-            <span className="bg-slate-200 px-3 py-1 rounded-full text-slate-700 font-black text-[10px] uppercase">{MOCK_QUESTIONS.length} Units</span>
           </div>
           
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 custom-scrollbar">
-            {MOCK_QUESTIONS.map((q) => (
-              <button 
-                key={q.id}
-                onClick={() => performAction(() => API.setCurrentQuestion(q.id))}
-                className={`w-full text-left p-6 rounded-[2rem] border-2 transition-all group relative overflow-hidden ${
-                  session.currentQuestionId === q.id 
-                    ? 'bg-slate-950 border-slate-950 shadow-2xl translate-x-2' 
-                    : 'bg-white border-slate-300 hover:border-slate-500 shadow-sm'
-                }`}
-              >
-                <div className="flex justify-between items-center mb-3">
-                  <span className={`text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-md ${
-                    session.currentQuestionId === q.id ? 'bg-indigo-500/20 text-indigo-400' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {q.roundType} Mode
-                  </span>
-                  {q.roundType === 'BUZZER' ? <Zap className="w-5 h-5 text-amber-500" /> : <Layers className="w-5 h-5 text-indigo-500" />}
-                </div>
-                <p className={`text-xl font-black leading-tight line-clamp-2 ${session.currentQuestionId === q.id ? 'text-white' : 'text-slate-950'}`}>
-                  {q.text}
-                </p>
-                <div className="mt-6 flex items-center justify-between">
-                  <span className={`text-xs font-black uppercase tracking-widest flex items-center gap-2 ${session.currentQuestionId === q.id ? 'text-slate-400' : 'text-slate-600'}`}>
-                    {/* Fix: Added missing Star icon from lucide-react */}
-                    <Star className="w-3 h-3" /> {q.points} Credits
-                  </span>
-                  <ChevronRight className={`w-5 h-5 transition-transform ${session.currentQuestionId === q.id ? 'text-white translate-x-1' : 'text-slate-300 group-hover:translate-x-1'}`} />
-                </div>
-              </button>
-            ))}
+          <div className="flex items-center gap-4 w-full lg:w-auto justify-end">
+             <Button 
+              variant={confirmReset ? 'danger' : 'secondary'} 
+              onClick={handleReset} 
+              disabled={updating}
+              className="w-full lg:w-auto"
+             >
+               {confirmReset ? <AlertTriangle className="w-4 h-4 mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+               {confirmReset ? 'Confirm?' : 'Reset'}
+             </Button>
+          </div>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          
+          {/* Left Column: Sequence Deck */}
+          <div className="lg:col-span-3 space-y-4 h-fit">
+            <Card className="max-h-[800px] flex flex-col" noPadding>
+               <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                   <Layers className="w-4 h-4" /> Sequence Deck
+                 </h3>
+                 <span className="bg-slate-100 px-2 py-1 rounded text-[10px] font-bold text-slate-600">{MOCK_QUESTIONS.length}</span>
+               </div>
+               
+               <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                 {MOCK_QUESTIONS.map((q) => (
+                   <button 
+                     key={q.id}
+                     onClick={() => performAction(() => API.setCurrentQuestion(q.id))}
+                     className={`w-full text-left p-4 rounded-xl border transition-all duration-200 group relative ${
+                       session.currentQuestionId === q.id 
+                         ? 'bg-slate-900 border-slate-900 shadow-lg' 
+                         : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50'
+                     }`}
+                   >
+                     <div className="flex justify-between items-center mb-2">
+                       <span className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                         session.currentQuestionId === q.id ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'
+                       }`}>
+                         {q.roundType}
+                       </span>
+                       {q.roundType === 'BUZZER' 
+                         ? <Zap className={`w-3 h-3 ${session.currentQuestionId === q.id ? 'text-amber-400' : 'text-amber-500'}`} /> 
+                         : <Layers className={`w-3 h-3 ${session.currentQuestionId === q.id ? 'text-indigo-400' : 'text-indigo-500'}`} />
+                       }
+                     </div>
+                     <p className={`text-sm font-bold leading-snug line-clamp-2 ${session.currentQuestionId === q.id ? 'text-white' : 'text-slate-700'}`}>
+                       {q.text}
+                     </p>
+                     <div className={`mt-3 flex items-center justify-between text-[10px] font-black uppercase tracking-widest ${session.currentQuestionId === q.id ? 'text-slate-400' : 'text-slate-400'}`}>
+                       <span className="flex items-center gap-1"><Star className="w-3 h-3" /> {q.points}</span>
+                       {session.currentQuestionId === q.id && <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />}
+                     </div>
+                   </button>
+                 ))}
+               </div>
+            </Card>
+
+            <button 
+               onClick={triggerAuraCommentary}
+               className="w-full bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-white/10 group relative overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
+            >
+               <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <BrainCircuit className="w-16 h-16" />
+               </div>
+               <div className="flex items-center gap-3 mb-2">
+                 <div className="p-2 bg-white/10 rounded-lg">
+                   <MessageSquare className="w-4 h-4 text-indigo-300" />
+                 </div>
+                 <span className="text-xs font-black uppercase tracking-widest text-indigo-200">Aura AI</span>
+               </div>
+               <p className="text-left text-sm font-bold leading-tight relative z-10">Trigger Contextual Commentary</p>
+            </button>
           </div>
 
-          <Card className="bg-indigo-950 text-white border-none p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden group">
-             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
-                <BrainCircuit className="w-20 h-20" />
-             </div>
-             <div className="flex items-center gap-4 mb-6">
-               <div className="p-3 bg-white/10 rounded-xl">
-                 <MessageSquare className="w-6 h-6 text-indigo-400" />
-               </div>
-               <h4 className="text-sm font-black uppercase tracking-widest italic">Aura Insight Engine</h4>
-             </div>
-             <p className="text-xs text-indigo-200 mb-8 leading-relaxed font-medium italic">Trigger an autonomous commentary sequence to maintain event momentum.</p>
-             <Button 
-               variant="primary" 
-               className="w-full bg-indigo-500 hover:bg-indigo-400 border-none py-5 text-white font-black text-base shadow-lg"
-               onClick={triggerAuraCommentary}
-             >
-               Force Contextual Insight
-             </Button>
-          </Card>
-        </div>
+          {/* Center Column: Stage Control */}
+          <div className="lg:col-span-6 space-y-6">
+            <Card className="border-t-4 border-t-slate-900 overflow-hidden" noPadding>
+              {/* Controls Grid */}
+              <div className="bg-slate-50/50 p-6 grid grid-cols-2 md:grid-cols-4 gap-3 border-b border-slate-100">
+                <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Nodes" disabled={!session.currentQuestionId} />
+                <ControlButton status={QuizStatus.LIVE} label="Engage" icon={Play} variant="success" desc="Open Inputs" disabled={!session.currentQuestionId} />
+                <ControlButton status={QuizStatus.LOCKED} label="Lock" icon={LockIcon} variant="danger" desc="Halt Inputs" disabled={session.status !== QuizStatus.LIVE} />
+                
+                <button
+                  onClick={() => performAction(API.revealAnswerAndProcessScores)} 
+                  disabled={(session.status !== QuizStatus.LOCKED && session.status !== QuizStatus.LIVE) || updating}
+                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 h-28 group ${
+                    session.status === QuizStatus.REVEALED 
+                      ? 'bg-indigo-600 border-indigo-600 shadow-md' 
+                      : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-slate-50 opacity-100 disabled:opacity-50 disabled:cursor-not-allowed'
+                  }`}
+                >
+                   <CheckCircle className={`w-6 h-6 mb-2 ${session.status === QuizStatus.REVEALED ? 'text-white' : 'text-slate-400 group-hover:text-indigo-500'}`} />
+                   <span className={`font-black uppercase text-sm ${session.status === QuizStatus.REVEALED ? 'text-white' : 'text-slate-600'}`}>Reveal</span>
+                   <span className={`text-[9px] font-bold uppercase tracking-wider mt-1 ${session.status === QuizStatus.REVEALED ? 'text-indigo-200' : 'text-slate-400'}`}>Show Result</span>
+                </button>
+              </div>
 
-        {/* Main Control Center */}
-        <div className="lg:col-span-6 space-y-10">
-          <Card className="border-t-8 border-slate-950 p-0 overflow-hidden shadow-2xl border-2 border-slate-200 rounded-[3rem]">
-            <div className="bg-slate-50 border-b-2 border-slate-200 p-10 flex gap-6">
-               <StatusButton 
-                  status={QuizStatus.PREVIEW} 
-                  label="PREVIEW" 
-                  icon={Eye} 
-                  variant="primary"
-                  desc="Sync question to nodes"
-                  disabled={!session.currentQuestionId}
-               />
-               <StatusButton 
-                  status={QuizStatus.LIVE} 
-                  label="ENGAGE" 
-                  icon={Play} 
-                  variant="success"
-                  desc="Activate user inputs"
-                  disabled={!session.currentQuestionId}
-               />
-               <StatusButton 
-                  status={QuizStatus.LOCKED} 
-                  label="LOCK" 
-                  icon={LockIcon} 
-                  variant="danger"
-                  desc="Disable telemetry"
-                  disabled={session.status !== QuizStatus.LIVE}
-               />
-               <div className="flex flex-col gap-2 flex-1 group">
-                 <Button 
-                    variant={session.status === QuizStatus.REVEALED ? 'primary' : 'secondary'} 
-                    onClick={() => performAction(API.revealAnswerAndProcessScores)} 
-                    disabled={(session.status !== QuizStatus.LOCKED && session.status !== QuizStatus.LIVE) || updating}
-                    className={`flex-1 h-20 flex items-center justify-center gap-3 transition-all ${
-                      session.status === QuizStatus.REVEALED ? 'bg-indigo-700 ring-4 ring-offset-2' : ''
-                    }`}
-                 >
-                   <CheckCircle className="w-6 h-6" />
-                   <span className="text-lg font-black">REVEAL</span>
-                 </Button>
-                 <div className="px-2">
-                   <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest text-center group-hover:text-slate-900 transition-colors">
-                     Calculate Delta
-                   </p>
-                 </div>
-               </div>
-            </div>
-
-            <div className="p-12">
-              {currentQuestion ? (
-                <div className="space-y-10">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-4 rounded-2xl ${currentQuestion.roundType === 'BUZZER' ? 'bg-amber-100' : 'bg-indigo-100'}`}>
-                         {currentQuestion.roundType === 'BUZZER' ? <Zap className="w-6 h-6 text-amber-600" /> : <Layers className="w-6 h-6 text-indigo-600" />}
+              {/* Question Display */}
+              <div className="p-8 min-h-[400px] flex flex-col">
+                {currentQuestion ? (
+                  <div className="flex-grow space-y-8 animate-in fade-in slide-in-from-bottom-4">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-3">
+                         <Badge color={currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>{currentQuestion.roundType}</Badge>
+                         <span className="text-slate-400 text-xs font-black uppercase tracking-wider">{currentQuestion.points} Credits</span>
                       </div>
-                      <div>
-                        <Badge color={currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>{currentQuestion.roundType} PROTOCOL</Badge>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1 italic">{currentQuestion.points} Points in Cluster Pool</p>
-                      </div>
+                      
+                      {currentQuestion.roundType === 'STANDARD' && session.status === QuizStatus.LIVE && (
+                         <Button variant="secondary" onClick={() => performAction(API.forcePass)} disabled={updating} className="h-8 text-xs py-0">
+                           <Forward className="w-3 h-3 mr-2" /> Force Pass
+                         </Button>
+                      )}
                     </div>
-                    {currentQuestion.roundType === 'STANDARD' && session.status === QuizStatus.LIVE && (
-                       <Button 
-                         variant="secondary" 
-                         onClick={() => performAction(API.forcePass)} 
-                         disabled={updating} 
-                         className="bg-white text-slate-950 hover:bg-slate-50 border-2 border-slate-900 px-6 py-3 rounded-2xl shadow-md flex items-center gap-3 font-black"
-                       >
-                         <Forward className="w-5 h-5 text-indigo-600" /> PASS TURN
-                       </Button>
-                    )}
-                  </div>
 
-                  <h2 className="text-5xl font-black text-slate-950 leading-tight tracking-tight italic">
-                    {currentQuestion.text}
-                  </h2>
-                  
-                  <div className="grid grid-cols-1 gap-6">
-                    {currentQuestion.options.map((opt, i) => {
-                      const isCorrect = i === currentQuestion.correctAnswer;
-                      return (
-                        <div key={i} className={`p-8 rounded-[2rem] border-2 flex items-center gap-8 transition-all duration-300 ${
-                          isCorrect 
-                            ? 'bg-emerald-50 border-emerald-600 shadow-lg scale-[1.01]' 
-                            : 'bg-white border-slate-200'
-                        }`}>
-                          <span className={`w-16 h-16 rounded-[1.2rem] flex items-center justify-center font-black text-3xl shadow-xl ${
-                            isCorrect ? 'bg-emerald-600 text-white' : 'bg-slate-950 text-white'
-                          }`}>
-                            {String.fromCharCode(65+i)}
-                          </span> 
-                          <span className={`font-black text-2xl tracking-tight ${isCorrect ? 'text-emerald-950' : 'text-slate-950'}`}>
-                            {opt}
-                          </span>
-                          {isCorrect && (
-                            <div className="ml-auto bg-emerald-600 text-white px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">
-                              Target Match
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <h2 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight">
+                      {currentQuestion.text}
+                    </h2>
+                    
+                    <div className="grid gap-3">
+                      {currentQuestion.options.map((opt, i) => {
+                         const isCorrect = i === currentQuestion.correctAnswer;
+                         return (
+                           <div key={i} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
+                             isCorrect 
+                               ? 'bg-emerald-50 border-emerald-200 shadow-sm' 
+                               : 'bg-white border-slate-100 opacity-60 grayscale-[0.5]'
+                           }`}>
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-lg ${
+                                isCorrect ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'
+                              }`}>
+                                {String.fromCharCode(65+i)}
+                              </div>
+                              <span className={`font-bold text-lg ${isCorrect ? 'text-emerald-900' : 'text-slate-700'}`}>{opt}</span>
+                              {isCorrect && <CheckCircle className="ml-auto w-5 h-5 text-emerald-500" />}
+                           </div>
+                         );
+                      })}
+                    </div>
                   </div>
-                </div>
-              ) : (
-                <div className="py-48 text-center space-y-8 animate-pulse">
-                  <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
-                    <Info className="w-12 h-12 text-slate-300" />
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 uppercase italic tracking-tighter">System Idle</h3>
-                    <p className="text-slate-400 font-bold uppercase tracking-widest text-xs mt-2">Selection required to begin uplink</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </Card>
-
-          {currentQuestion?.roundType === 'STANDARD' && session.activeTeamId && session.status === QuizStatus.LIVE && (
-            <Card className="bg-indigo-950 text-white p-10 rounded-[3rem] shadow-2xl border-b-[12px] border-indigo-900 animate-in slide-in-from-bottom duration-500">
-              <div className="flex justify-between items-center">
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-amber-500 animate-pulse" />
-                    <h4 className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.4em] italic">Active possession</h4>
-                  </div>
-                  <p className="text-5xl font-black uppercase italic text-white tracking-tighter">
-                    {session.teams.find(t => t.id === session.activeTeamId)?.name}
-                  </p>
-                </div>
-                <div className="text-right space-y-4">
-                   <p className="text-[11px] font-black text-indigo-300 uppercase tracking-[0.4em] italic">Shot Clock</p>
-                   <div className="text-8xl font-display font-black text-amber-400 tabular-nums drop-shadow-2xl">
-                     {Math.max(0, 30 - Math.floor((now - (session.turnStartTime || now)) / 1000))}s
+                ) : (
+                   <div className="flex-grow flex flex-col items-center justify-center text-slate-300 space-y-4">
+                      <Info className="w-16 h-16 opacity-20" />
+                      <p className="font-black uppercase tracking-widest text-sm">Select a sequence to initiate</p>
                    </div>
-                </div>
+                )}
               </div>
             </Card>
-          )}
-        </div>
 
-        {/* Sidebar: Status & Standings */}
-        <div className="lg:col-span-3 space-y-10">
-          <Card className="bg-slate-950 text-white rounded-[2.5rem] p-10 border-none shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
-            <h3 className="text-[12px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-8 italic flex items-center gap-3">
-               <Zap className="w-4 h-4" /> Live Buffer Feed
-            </h3>
-            <div className="space-y-6 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
-              {sortedSubmissions.length === 0 ? (
-                <div className="py-24 text-center space-y-4">
-                  <HelpCircle className="w-12 h-12 text-slate-800 mx-auto" />
-                  <p className="text-slate-600 font-black uppercase text-[10px] tracking-widest italic">Waiting for telemetry...</p>
-                </div>
-              ) : (
-                sortedSubmissions.map((s, i) => {
-                  const team = session.teams.find(t => t.id === s.teamId);
-                  return (
-                    <div key={i} className="p-6 rounded-[1.8rem] flex items-center gap-5 border bg-white/5 border-white/10 hover:bg-white/10 transition-colors">
-                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-black bg-slate-900 text-indigo-400 border border-white/10">
-                        {i + 1}
-                      </div>
-                      <div className="flex-grow min-w-0">
-                        <p className="text-lg font-black truncate text-white uppercase italic tracking-tight">{team?.name}</p>
-                        <p className="text-[10px] uppercase font-black text-slate-500 tracking-widest">{s.type} RECV</p>
-                      </div>
-                      <Badge color={s.isCorrect ? 'green' : 'red'}>{s.isCorrect ? 'VALID' : '-50'}</Badge>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </Card>
-
-          <Card className="border-2 border-slate-300 bg-white rounded-[2.5rem] p-10 shadow-xl">
-            <h3 className="text-[11px] font-black text-slate-500 uppercase tracking-[0.4em] mb-10 italic flex items-center gap-3">
-               <Trophy className="w-4 h-4 text-amber-500" /> Cluster Rank
-            </h3>
-            <div className="space-y-6">
-              {session.teams.sort((a,b) => b.score - a.score).map((t, i) => (
-                <div key={i} className={`flex justify-between items-center p-6 rounded-[2rem] transition-all duration-300 ${
-                  i === 0 ? 'bg-slate-950 text-white shadow-xl scale-[1.03]' : 'bg-slate-50 border border-slate-200'
-                }`}>
-                  <div className="flex items-center gap-5">
-                    <span className={`text-xl font-black italic ${i === 0 ? 'text-indigo-400' : 'text-slate-400'}`}>
-                      {i + 1 < 10 ? `0${i + 1}` : i + 1}
-                    </span>
-                    <span className="font-black text-xl uppercase tracking-tighter italic">{t.name}</span>
+            {/* Active Turn Indicator (Standard Mode) */}
+            {currentQuestion?.roundType === 'STANDARD' && session.activeTeamId && session.status === QuizStatus.LIVE && (
+               <div className="bg-slate-900 text-white p-6 rounded-3xl flex items-center justify-between shadow-xl animate-in slide-in-from-bottom">
+                  <div>
+                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Current Turn</p>
+                    <p className="text-2xl font-black uppercase tracking-tight">{session.teams.find(t => t.id === session.activeTeamId)?.name}</p>
                   </div>
-                  <span className={`font-display font-black text-2xl italic ${i === 0 ? 'text-amber-400' : 'text-slate-950'}`}>
-                    {t.score}
-                  </span>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Time Remaining</p>
+                    <p className="text-4xl font-black text-amber-500 font-mono tabular-nums">
+                      {Math.max(0, 30 - Math.floor((now - (session.turnStartTime || now)) / 1000))}s
+                    </p>
+                  </div>
+               </div>
+            )}
+          </div>
+
+          {/* Right Column: Live Feed & Rank */}
+          <div className="lg:col-span-3 space-y-6">
+             <Card className="flex flex-col h-[400px]" noPadding>
+                <div className="p-5 border-b border-slate-100">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-amber-500" /> Live Feed
+                  </h3>
                 </div>
-              ))}
-            </div>
-            <div className="mt-10 pt-6 border-t-2 border-slate-100 flex items-center justify-center gap-3">
-               <Info className="w-4 h-4 text-slate-400" />
-               <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Auto-Sync Frequency: 1.5s</p>
-            </div>
-          </Card>
+                <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                   {sortedSubmissions.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-slate-300 text-[10px] font-black uppercase tracking-widest">
+                        Awaiting Telemetry...
+                      </div>
+                   ) : (
+                      sortedSubmissions.map((s, i) => {
+                         const team = session.teams.find(t => t.id === s.teamId);
+                         return (
+                           <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                              <div className="w-6 h-6 rounded bg-slate-200 flex items-center justify-center text-[10px] font-black text-slate-500">
+                                {i+1}
+                              </div>
+                              <div className="min-w-0 flex-grow">
+                                 <p className="text-xs font-black text-slate-900 truncate uppercase">{team?.name}</p>
+                                 <p className="text-[9px] font-bold text-slate-400 uppercase">{s.type}</p>
+                              </div>
+                              <Badge color={s.isCorrect ? 'green' : 'red'}>{s.isCorrect ? 'HIT' : 'MISS'}</Badge>
+                           </div>
+                         );
+                      })
+                   )}
+                </div>
+             </Card>
+
+             <Card noPadding>
+                <div className="p-5 border-b border-slate-100">
+                  <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest">Cluster Rank</h3>
+                </div>
+                <div className="p-2">
+                  {session.teams.sort((a,b) => b.score - a.score).map((t, i) => (
+                     <div key={i} className={`flex items-center justify-between p-3 rounded-xl mb-1 ${i === 0 ? 'bg-amber-50 border border-amber-100' : ''}`}>
+                        <div className="flex items-center gap-3">
+                           <span className={`text-sm font-black ${i === 0 ? 'text-amber-600' : 'text-slate-400'}`}>0{i+1}</span>
+                           <span className="text-sm font-bold text-slate-700 uppercase">{t.name}</span>
+                        </div>
+                        <span className={`text-sm font-black ${i === 0 ? 'text-amber-600' : 'text-slate-900'}`}>{t.score}</span>
+                     </div>
+                  ))}
+                </div>
+             </Card>
+          </div>
+
         </div>
       </div>
     </div>
   );
 };
-
-const Trophy = ({ className }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-    <path d="M4 22h16" />
-    <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-    <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-    <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-  </svg>
-);
 
 export default AdminView;
