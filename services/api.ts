@@ -79,7 +79,7 @@ const processQueue = async () => {
     const command = new SynthesizeSpeechCommand({
       Text: text,
       OutputFormat: "mp3",
-      VoiceId: "Aditi", // Indian English Female Neural
+      VoiceId: "Kajal", // Changed from Aditi to Kajal (Neural)
       Engine: "neural",
       TextType: isSSML ? "ssml" : "text"
     });
