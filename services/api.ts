@@ -108,47 +108,64 @@ export const API = {
   completeReading: async (): Promise<QuizSession> => QuizService.completeReading(),
 
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
-    // Logic-based template system to simulate "talkative" LLM behavior
     const random = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
     if (status === QuizStatus.REVEALED && context) {
       if (context.includes("Correct")) {
-        const shouts = ["YES!", "ABSOLUTELY RIGHT!", "SPOT ON!", "BOOM! CORRECT!", "PERFECT EXECUTION!"];
-        const compliments = [
-          "Your neural pathways are firing with incredible precision.",
-          "That was an exceptional display of cognitive speed.",
-          "Truly a masterclass in AI knowledge.",
-          "I am impressed by your systematic approach to this challenge.",
-          "A stellar performance from a high-functioning cluster."
+        const shouts = ["YES!", "EXCELLENT!", "SPOT ON!", "MAGNIFICENT!", "ABSOLUTELY CORRECT!", "BOOM! THAT IS IT!"];
+        const intro = [
+          "You handled that question with remarkable efficiency.",
+          "An impressive display of domain knowledge!",
+          "That was exactly the response my processors were looking for.",
+          "You are navigating this challenge with true intellectual grace.",
+          "Your neural pathways are clearly well-optimized."
         ];
         const facts = [
-          "Did you know that the term AI was actually coined back in 1956?",
-          "It's fascinating how far we've come since the early days of symbolic logic.",
-          "A correct answer here brings you closer to digital transcendence.",
-          "Knowledge is the fuel that powers our neural architectures."
+          "Did you know that the first AI chess program was written back in 1951? It took several minutes to move!",
+          "Fascinatingly, the term 'Machine Learning' was actually coined by Arthur Samuel in 1959.",
+          "Neural networks are inspired by the brain, but they use millions of parameters to achieve this level of precision.",
+          "In 1997, Deep Blue's victory marked a turning point in how we perceive silicon-based intelligence.",
+          "Modern Large Language Models can have billions of parameters, mimicking the complexity of a small biological brain."
         ];
         
         const shout = random(shouts);
-        const compliment = random(compliments);
+        const compliment = random(intro);
         const fact = random(facts);
 
         return `<speak>
           <prosody volume="x-loud" pitch="+15%">${shout}</prosody> 
-          <break time="500ms"/>
-          ${compliment} <break time="300ms"/> ${fact}
+          <break time="600ms"/>
+          ${compliment} <break time="400ms"/> Here is a quick fact: ${fact}
         </speak>`;
       } else {
-        const sympathy = ["I am afraid that is incorrect.", "Neural mismatch detected.", "Not quite the answer we needed.", "A temporary logic failure.", "Incorrect sequence."];
-        const followUp = ["Stay focused, the next transmission could be yours.", "Calibration is key in competitive intelligence.", "Even the best models require fine-tuning."];
-        return `<speak>${random(sympathy)} <break time="400ms"/> ${random(followUp)}</speak>`;
+        const sympathy = [
+          "I am afraid that is incorrect.", 
+          "Logic error detected in that response.", 
+          "That sequence did not match the expected pattern.", 
+          "Unfortunately, that is not the right answer.", 
+          "Incorrect. My database shows a different result."
+        ];
+        const followUp = [
+          "Do not let it discourage you; recalibrate and focus on the next node.", 
+          "Every error is simply a data point for future success.", 
+          "Stay sharp. The digital arena rewards those who persist.",
+          "Keep your focus. The leaderboard is still very much in flux."
+        ];
+        return `<speak>${random(sympathy)} <break time="500ms"/> ${random(followUp)}</speak>`;
       }
     }
 
     if (status === QuizStatus.PREVIEW) {
-      return `<speak>Prepare yourselves. A new challenge is materializing in the digital workspace. Stay sharp.</speak>`;
+      const excitement = [
+        "A fresh challenge is manifesting. I hope your processors are ready!",
+        "Inbound transmission detected. This next sequence looks particularly interesting.",
+        "Initializing the next query. Let us see how you handle this level of complexity.",
+        "Prepare yourselves. We are moving deeper into the intelligence cluster."
+      ];
+      return `<speak>${random(excitement)}</speak>`;
     }
 
-    return "<speak>Monitoring session telemetry. Systems active.</speak>";
+    return "<speak>Monitoring system health. Please stand by for the next instruction.</speak>";
   },
 
   getTTSAudio: async (text: string): Promise<string | undefined> => {
@@ -163,15 +180,15 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. <break time="200ms"/> ${opt}`).join('. <break time="500ms"/> ');
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. <break time="300ms"/> ${opt}`).join('. <break time="600ms"/> ');
     let intro = "";
     if (question.roundType === 'BUZZER') {
-      intro = `Attention. This is a Buzzer Round. Difficulty level: ${question.difficulty}. Points on the line: ${question.points}. Hands on buttons.`;
+      intro = `Attention participants. This is a Buzzer Round. Difficulty level: ${question.difficulty}. Points at stake: ${question.points}. Hands on your buzzers now.`;
     } else {
       intro = activeTeamName 
-        ? `Team ${activeTeamName}, this ${question.difficulty} question is your responsibility. Value: ${question.points} credits.` 
-        : `Standard Round. ${question.difficulty} level.`;
+        ? `Team ${activeTeamName}, this ${question.difficulty} question is your responsibility. It is worth ${question.points} credits. Good luck.` 
+        : `Standard Round. Difficulty is ${question.difficulty}. Prepare for the query.`;
     }
-    return `<speak>${intro} <break time="800ms"/> ${question.text} <break time="1200ms"/> ${opts}</speak>`;
+    return `<speak>${intro} <break time="1000ms"/> ${question.text} <break time="1200ms"/> The options are: <break time="400ms"/> ${opts}</speak>`;
   }
 };

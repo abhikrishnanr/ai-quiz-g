@@ -59,7 +59,7 @@ const TeamView: React.FC = () => {
     if (!session.currentQuestionId || session.status === QuizStatus.PREVIEW) {
       return (
         <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-6">
-          <Clock className="w-16 h-16 text-indigo-400 animate-pulse" />
+          <Clock className="w-16 h-16 text-slate-400 animate-pulse" />
           <h2 className="text-2xl font-black text-white uppercase tracking-widest">Awaiting Uplink...</h2>
         </div>
       );
@@ -71,7 +71,7 @@ const TeamView: React.FC = () => {
 
       return (
         <div className="space-y-6 pb-24">
-           <div className={`p-4 rounded-2xl text-white flex justify-between items-center ${isBuzzer ? 'bg-amber-600' : 'bg-indigo-600'}`}>
+           <div className={`p-4 rounded-2xl text-white flex justify-between items-center ${isBuzzer ? 'bg-amber-600' : 'bg-slate-800'}`}>
               <span className="font-black uppercase tracking-widest">{isBuzzer ? 'Fastest Finger' : isMyTurn ? 'YOUR TURN' : 'LISTENING'}</span>
            </div>
 
@@ -81,9 +81,9 @@ const TeamView: React.FC = () => {
 
            <div className="relative">
               {showHint ? (
-                 <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl animate-in zoom-in">
-                    <p className="text-[10px] font-black uppercase text-indigo-400 mb-1">Tactical Suggestion</p>
-                    <p className="text-sm font-bold text-indigo-800 italic">"{currentQuestion?.hint}"</p>
+                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl animate-in zoom-in">
+                    <p className="text-[10px] font-black uppercase text-slate-400 mb-1">Tactical Suggestion</p>
+                    <p className="text-sm font-bold text-slate-800 italic">"{currentQuestion?.hint}"</p>
                  </div>
               ) : (
                 <button 
@@ -101,16 +101,16 @@ const TeamView: React.FC = () => {
                  key={i} 
                  disabled={!!mySubmission || !canPlay} 
                  onClick={() => setSelectedAnswer(i)} 
-                 className={`w-full p-5 rounded-2xl border-2 text-left flex items-center transition-all ${selectedAnswer === i ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-700'}`}
+                 className={`w-full p-5 rounded-2xl border-2 text-left flex items-center transition-all ${selectedAnswer === i ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-200 text-slate-700'}`}
                >
-                 <span className={`w-10 h-10 rounded-lg flex items-center justify-center mr-4 font-black ${selectedAnswer === i ? 'bg-indigo-500' : 'bg-slate-100 text-slate-400'}`}>{String.fromCharCode(65+i)}</span>
+                 <span className={`w-10 h-10 rounded-lg flex items-center justify-center mr-4 font-black ${selectedAnswer === i ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-400'}`}>{String.fromCharCode(65+i)}</span>
                  <span className="text-lg font-bold">{opt}</span>
                </button>
              ))}
            </div>
 
            {!mySubmission && canPlay && (
-             <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className="w-full py-6 bg-indigo-600 text-white rounded-2xl text-2xl font-black uppercase shadow-xl shadow-indigo-500/20 active:scale-95 transition-all">
+             <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className="w-full py-6 bg-slate-900 text-white rounded-2xl text-2xl font-black uppercase shadow-xl active:scale-95 transition-all">
                 {isBuzzer ? 'BUZZ!' : 'SUBMIT'}
              </button>
            )}
@@ -149,11 +149,11 @@ const TeamView: React.FC = () => {
          <button onClick={() => { localStorage.removeItem('duk_team_id'); setSelectedTeam(null); }} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><LogOut className="w-4 h-4" /></button>
       </header>
       <main className="flex-grow p-4 overflow-y-auto">{renderContent()}</main>
-      <div className="bg-white/10 backdrop-blur-lg border-t border-white/10 p-4 flex items-center gap-3">
-         <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center shrink-0">
-            <MessageSquare className="w-5 h-5 text-indigo-400" />
+      <div className="bg-slate-900 border-t border-slate-800 p-4 flex items-center gap-3">
+         <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center shrink-0">
+            <MessageSquare className="w-5 h-5 text-slate-400" />
          </div>
-         <p className="text-xs text-indigo-200 italic font-medium leading-snug">"Monitoring system vitals. Prepare for the next transmission."</p>
+         <p className="text-xs text-slate-400 italic font-medium leading-snug">"Monitoring system vitals. Prepare for the next transmission."</p>
       </div>
     </div>
   );

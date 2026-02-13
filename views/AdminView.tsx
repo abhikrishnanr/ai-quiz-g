@@ -18,7 +18,7 @@ const AdminView: React.FC = () => {
   const [confirmReset, setConfirmReset] = useState(false);
   const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  if (loading || !session) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full"/></div>;
+  if (loading || !session) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="animate-spin w-8 h-8 border-4 border-slate-900 border-t-transparent rounded-full"/></div>;
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
 
@@ -55,7 +55,7 @@ const AdminView: React.FC = () => {
   const ControlButton = ({ status, label, icon: Icon, variant, desc, disabled = false }: { status: QuizStatus, label: string, icon: any, variant: 'primary' | 'success' | 'danger', desc: string, disabled?: boolean }) => {
     const isActive = session.status === status;
     const styles = {
-      primary: { active: 'bg-indigo-50 border-indigo-500 shadow-md', iconActive: 'text-indigo-600', ping: 'bg-indigo-400', dot: 'bg-indigo-500' },
+      primary: { active: 'bg-slate-100 border-slate-900 shadow-md', iconActive: 'text-slate-900', ping: 'bg-slate-400', dot: 'bg-slate-900' },
       success: { active: 'bg-emerald-50 border-emerald-500 shadow-md', iconActive: 'text-emerald-600', ping: 'bg-emerald-400', dot: 'bg-emerald-500' },
       danger: { active: 'bg-red-50 border-red-500 shadow-md', iconActive: 'text-red-600', ping: 'bg-red-400', dot: 'bg-red-500' }
     };
@@ -122,7 +122,7 @@ const AdminView: React.FC = () => {
                    >
                      <div className="flex gap-1.5 mb-2">
                        <span className={`text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ${session.currentQuestionId === q.id ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>{q.roundType}</span>
-                       <span className={`text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded ${session.currentQuestionId === q.id ? 'bg-white/10 text-white border border-white/20' : `bg-${getDifficultyColor(q.difficulty)}-50 text-${getDifficultyColor(q.difficulty)}-600 border border-${getDifficultyColor(q.difficulty)}-100`}`}>{q.difficulty}</span>
+                       <span className={`text-[8px] font-black uppercase tracking-wider px-1 py-0.5 rounded border ${session.currentQuestionId === q.id ? 'border-white/20 text-white' : `border-${getDifficultyColor(q.difficulty)}-200 text-${getDifficultyColor(q.difficulty)}-600`}`}>{q.difficulty}</span>
                      </div>
                      <p className={`text-sm font-bold line-clamp-2 ${session.currentQuestionId === q.id ? 'text-white' : 'text-slate-700'}`}>{q.text}</p>
                    </button>
@@ -139,9 +139,9 @@ const AdminView: React.FC = () => {
                 <ControlButton status={QuizStatus.LOCKED} label="Lock" icon={LockIcon} variant="danger" desc="Freeze" />
                 <button
                   onClick={() => performAction(API.revealAnswerAndProcessScores)} 
-                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 h-28 transition-all ${session.status === QuizStatus.REVEALED ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
+                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 h-28 transition-all ${session.status === QuizStatus.REVEALED ? 'bg-slate-900 text-white border-slate-900 shadow-md' : 'bg-white border-slate-200 hover:bg-slate-50'}`}
                 >
-                   <CheckCircle className="w-6 h-6 mb-2" />
+                   <CheckCircle className={`w-6 h-6 mb-2 ${session.status === QuizStatus.REVEALED ? 'text-white' : 'text-slate-400'}`} />
                    <span className="font-black uppercase text-sm">Reveal</span>
                    <span className="text-[9px] font-bold uppercase mt-1">Results</span>
                 </button>
@@ -155,7 +155,7 @@ const AdminView: React.FC = () => {
                          <Badge color={getDifficultyColor(currentQuestion.difficulty)}>{currentQuestion.difficulty}</Badge>
                          <Badge color="slate">{currentQuestion.points} pts</Badge>
                       </div>
-                      <div className="flex items-center gap-2 text-indigo-600">
+                      <div className="flex items-center gap-2 text-slate-400">
                          <Sparkles className="w-4 h-4" />
                          <span className="text-xs font-black uppercase tracking-widest">Active Hint: {currentQuestion.hint}</span>
                       </div>

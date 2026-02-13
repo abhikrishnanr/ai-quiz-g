@@ -38,13 +38,13 @@ const Home: React.FC = () => (
           <Link 
             key={idx}
             to={item.to} 
-            className="group relative p-1 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 hover:from-indigo-500 hover:to-cyan-500 transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(99,102,241,0.3)]"
+            className="group relative p-1 rounded-[2.5rem] bg-gradient-to-br from-white/10 to-white/5 hover:from-slate-800 hover:to-slate-700 transition-all duration-500 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(255,255,255,0.1)]"
           >
             <div className={`h-full bg-slate-950 rounded-[2.3rem] p-8 flex flex-col items-center text-center border border-white/5 relative overflow-hidden group-hover:bg-slate-900 transition-colors`}>
               <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <item.icon className="w-12 h-12 text-slate-500 group-hover:text-white transition-colors duration-300 mb-6 relative z-10" />
               <h2 className="text-2xl font-black text-white uppercase tracking-tight relative z-10">{item.label}</h2>
-              <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 group-hover:text-indigo-300 transition-colors relative z-10">{item.desc}</p>
+              <p className="text-slate-500 text-sm font-bold uppercase tracking-widest mt-2 group-hover:text-slate-300 transition-colors relative z-10">{item.desc}</p>
               
               <div className="mt-8 opacity-0 group-hover:opacity-100 transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 relative z-10">
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
@@ -57,7 +57,7 @@ const Home: React.FC = () => (
       </div>
       
       <footer className="mt-24 flex flex-wrap justify-center gap-8 text-[10px] font-black tracking-[0.3em] text-slate-600 uppercase">
-        <span className="flex items-center gap-2"><Zap className="w-3 h-3" /> Powered by Gemini 1.5</span>
+        <span className="flex items-center gap-2"><Zap className="w-3 h-3" /> Neural Architecture</span>
         <span className="w-1 h-1 bg-slate-700 rounded-full my-auto hidden md:block"></span>
         <span>Low Latency Protocol</span>
         <span className="w-1 h-1 bg-slate-700 rounded-full my-auto hidden md:block"></span>
