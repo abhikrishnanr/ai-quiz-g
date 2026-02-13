@@ -11,6 +11,13 @@ export const COLORS = {
   background: '#f8fafc', // Slate 50
 };
 
+export const HOST_SCRIPTS = {
+  WARNING_10S: "Ten seconds remaining.",
+  TIME_UP: "Time is up.",
+  GENERIC_CORRECT: "That is correct!",
+  GENERIC_WRONG: "I am afraid that is incorrect.",
+};
+
 export const MOCK_QUESTIONS: Question[] = [
   {
     id: 'q1',

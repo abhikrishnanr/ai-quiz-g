@@ -36,6 +36,7 @@ export const API = {
     return QuizService.completeReading();
   },
 
+  // Generates dynamic commentary (Higher Latency: ~2-3s)
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
     try {
       const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -52,10 +53,8 @@ export const API = {
         1. If status is REVEALED:
            - Announce the result ("Correct!" or "Oh no, that is incorrect") with emotion.
            - Add a very brief, encouraging comment (max 8 words).
-        2. If status is LIVE:
-           - A quick, sweet encouragement. "Here is your question." or "Time starts now."
-        3. Keep it short.
-        4. No quotes.
+        2. Keep it concise and natural.
+        3. No quotes.
       `;
 
       const response = await genAI.models.generateContent({
@@ -63,14 +62,15 @@ export const API = {
         contents: prompt
       });
 
-      return response.text || "Data uplink established.";
+      return response.text || "Proceeding.";
     } catch (error) {
       console.error("Gemini Error:", error);
       return "Processing.";
     }
   },
 
-  generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
+  // Generates audio from text directly (Lower Latency: ~500ms - 1s)
+  getTTSAudio: async (text: string): Promise<string | undefined> => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
@@ -92,14 +92,21 @@ export const API = {
     }
   },
 
+  // Alias for backward compatibility, but we prefer specific calls now
+  generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
+    return API.getTTSAudio(text);
+  },
+
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
     
     if (question.roundType === 'BUZZER') {
-      return `Buzzer Round! Fastest finger wins. Plus ${question.points} for correct, minus 50 for incorrect. Here is the question: ${question.text}. The options are: ${opts}.`;
+      return `Buzzer Round for ${question.points} credits! Hands on buttons. Correct answer gains points, incorrect loses fifty. Here is the question: ${question.text}. The options are: ${opts}.`;
     } else {
       // Standard Round
-      const intro = activeTeamName ? `Question for team ${activeTeamName}.` : "Question for the active team.";
+      const intro = activeTeamName 
+        ? `Standard Round. Question for ${activeTeamName}.` 
+        : "Standard Round.";
       return `${intro} ${question.text}. The options are: ${opts}.`;
     }
   }
