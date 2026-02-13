@@ -6,10 +6,10 @@ import { QuizStatus, Difficulty } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 import { Card, Button, Badge } from '../components/SharedUI';
 import { 
-  Settings, RefreshCcw, Zap, Layers, ChevronRight, 
-  Forward, AlertTriangle, CheckCircle, BrainCircuit, 
+  Settings, Zap, Layers, ChevronRight, 
+  CheckCircle, BrainCircuit, 
   MessageSquare, Play, Lock as LockIcon, Eye, Star,
-  Info, BarChart3, Sparkles, Activity, ShieldAlert
+  Sparkles, Activity, Power, ShieldAlert
 } from 'lucide-react';
 
 const AdminView: React.FC = () => {
@@ -20,8 +20,11 @@ const AdminView: React.FC = () => {
 
   if (loading || !session) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950">
-      <div className="animate-spin w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full shadow-[0_0_30px_rgba(79,70,229,0.5)]"/>
-      <p className="mt-6 text-slate-500 font-black uppercase tracking-widest animate-pulse">Initializing Core...</p>
+      <div className="relative">
+        <div className="absolute inset-0 bg-indigo-500/20 blur-3xl animate-pulse rounded-full" />
+        <Activity className="w-16 h-16 text-indigo-500 animate-spin relative z-10" />
+      </div>
+      <p className="mt-8 text-indigo-400 font-black uppercase tracking-[0.4em] text-xs animate-pulse">Initializing Interface...</p>
     </div>
   );
 
@@ -57,32 +60,32 @@ const AdminView: React.FC = () => {
     }
   };
 
-  const ControlButton = ({ status, label, icon: Icon, variant, desc, disabled = false }: { status: QuizStatus, label: string, icon: any, variant: 'primary' | 'success' | 'danger', desc: string, disabled?: boolean }) => {
+  const ControlButton = ({ status, label, icon: Icon, variant, desc }: { status: QuizStatus, label: string, icon: any, variant: 'primary' | 'success' | 'danger', desc: string }) => {
     const isActive = session.status === status;
     const styles = {
-      primary: { active: 'bg-indigo-500/20 border-indigo-500 shadow-[0_0_20px_rgba(79,70,229,0.3)]', iconActive: 'text-indigo-400', ping: 'bg-indigo-400', dot: 'bg-indigo-500' },
-      success: { active: 'bg-emerald-500/20 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.3)]', iconActive: 'text-emerald-400', ping: 'bg-emerald-400', dot: 'bg-emerald-500' },
-      danger: { active: 'bg-rose-500/20 border-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.3)]', iconActive: 'text-rose-400', ping: 'bg-rose-400', dot: 'bg-rose-500' }
+      primary: { active: 'bg-indigo-600/20 border-indigo-500 shadow-[0_0_40px_rgba(79,70,229,0.3)]', iconActive: 'text-indigo-400', dot: 'bg-indigo-500' },
+      success: { active: 'bg-emerald-600/20 border-emerald-500 shadow-[0_0_40_rgba(16,185,129,0.3)]', iconActive: 'text-emerald-400', dot: 'bg-emerald-500' },
+      danger: { active: 'bg-rose-600/20 border-rose-500 shadow-[0_0_40px_rgba(244,63,94,0.3)]', iconActive: 'text-rose-400', dot: 'bg-rose-500' }
     };
     const variantStyle = styles[variant];
 
     return (
       <button
         onClick={() => performAction(() => API.updateSessionStatus(status))}
-        disabled={disabled || updating}
-        className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all h-28 ${
-          isActive ? variantStyle.active : 'bg-white/5 border-white/10 hover:bg-white/10 disabled:opacity-30'
+        disabled={updating}
+        className={`relative flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 transition-all duration-500 h-32 group ${
+          isActive ? variantStyle.active : 'bg-white/5 border-white/5 hover:bg-white/10 disabled:opacity-30'
         }`}
       >
-        <div className={`p-2 rounded-full mb-2 ${isActive ? 'bg-indigo-500/10 shadow-inner' : 'bg-white/5'}`}>
-           <Icon className={`w-5 h-5 ${isActive ? variantStyle.iconActive : 'text-slate-500'}`} />
+        <div className={`p-3 rounded-2xl mb-3 transition-colors ${isActive ? 'bg-white/10 shadow-inner' : 'bg-white/5 group-hover:bg-white/10'}`}>
+           <Icon className={`w-6 h-6 ${isActive ? variantStyle.iconActive : 'text-slate-500'}`} />
         </div>
-        <span className={`font-black uppercase text-xs tracking-tighter ${isActive ? 'text-white' : 'text-slate-400'}`}>{label}</span>
-        <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-slate-500 mt-1">{desc}</span>
+        <span className={`font-black uppercase text-[10px] tracking-widest ${isActive ? 'text-white' : 'text-slate-500'}`}>{label}</span>
+        <span className="text-[8px] font-bold uppercase tracking-[0.25em] text-slate-600 mt-1">{desc}</span>
         {isActive && (
-          <div className="absolute top-2 right-2">
+          <div className="absolute top-4 right-4">
             <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${variantStyle.ping}`}></span>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${variantStyle.dot}`}></span>
               <span className={`relative inline-flex rounded-full h-2 w-2 ${variantStyle.dot}`}></span>
             </span>
           </div>
@@ -92,57 +95,67 @@ const AdminView: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 lg:p-8 font-sans text-slate-200 selection:bg-indigo-500/30">
-      {/* Background Decor */}
-      <div className="fixed inset-0 pointer-events-none opacity-30">
-         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-600/10 blur-[150px] rounded-full" />
-         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-cyan-600/10 blur-[150px] rounded-full" />
+    <div className="min-h-screen bg-slate-950 font-sans text-slate-200 selection:bg-indigo-500/40 relative overflow-hidden">
+      
+      {/* Universal Cyber Background */}
+      <div className="absolute inset-0 pointer-events-none">
+         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full animate-pulse" />
+         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 blur-[150px] rounded-full animate-pulse" />
+         <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)]" />
+         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
       </div>
 
-      <div className="max-w-[110rem] mx-auto space-y-6 relative z-10">
-        <header className="bg-slate-900/40 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-white/10 flex justify-between items-center">
-          <div className="flex items-center gap-5">
-            <div className="bg-indigo-600 p-3 rounded-2xl shadow-[0_0_20px_rgba(79,70,229,0.4)]">
-              <Settings className="w-6 h-6 text-white" />
+      <div className="relative z-10 max-w-[120rem] mx-auto p-6 lg:p-10 space-y-8">
+        
+        {/* Header Protocol */}
+        <header className="bg-slate-900/40 backdrop-blur-3xl rounded-[3rem] p-8 shadow-2xl border border-white/10 flex flex-wrap gap-8 justify-between items-center">
+          <div className="flex items-center gap-6">
+            <div className="bg-indigo-600 p-4 rounded-3xl shadow-[0_0_30px_rgba(79,70,229,0.5)]">
+              <Settings className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Quiz Architect <span className="text-indigo-500 font-light opacity-50 ml-2">v2.4.0</span></h1>
-              <div className="flex items-center gap-2 mt-1">
-                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Neural Uplink Stable</span>
+              <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Quiz Architect <span className="text-indigo-400/50 font-light ml-2">CORE_UPLINK</span></h1>
+              <div className="flex items-center gap-3 mt-1.5">
+                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_10px_rgba(16,185,129,1)]" />
+                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">System Vitals Operational</span>
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-4">
-             <Button variant={confirmReset ? 'danger' : 'secondary'} onClick={handleReset} disabled={updating}>
-               {confirmReset ? 'Confirm Protocol Reset?' : 'Reset Session'}
+          <div className="flex items-center gap-6">
+             <div className="hidden md:flex flex-col items-end">
+                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Master Session ID</span>
+                <span className="text-sm font-mono text-indigo-400 uppercase">{session.id.substring(0,14)}</span>
+             </div>
+             <Button variant={confirmReset ? 'danger' : 'secondary'} onClick={handleReset} disabled={updating} className="h-14">
+               {confirmReset ? 'Confirm Reset?' : 'Full System Reset'}
              </Button>
           </div>
         </header>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* LEFT: SEQUENCE DECK */}
-          <div className="lg:col-span-3 space-y-4">
-            <Card className="max-h-[800px] flex flex-col" noPadding>
-               <div className="p-6 border-b border-white/5 flex justify-between items-center">
-                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Data fragments</h3>
-                 <span className="bg-white/5 px-2 py-1 rounded text-[10px] font-bold text-indigo-400">{MOCK_QUESTIONS.length} Nodes</span>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+          
+          {/* LEFT: NODES (Questions) */}
+          <div className="lg:col-span-3 space-y-6">
+            <Card className="max-h-[85vh] flex flex-col overflow-hidden" noPadding>
+               <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
+                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Data Nodes</h3>
+                 <span className="bg-indigo-500/10 px-3 py-1 rounded-full text-[10px] font-black text-indigo-400 border border-indigo-500/20">{MOCK_QUESTIONS.length} TOTAL</span>
                </div>
-               <div className="overflow-y-auto p-4 space-y-3 custom-scrollbar">
+               <div className="overflow-y-auto p-5 space-y-4 custom-scrollbar flex-grow">
                  {MOCK_QUESTIONS.map((q) => (
                    <button 
                      key={q.id}
                      onClick={() => performAction(() => API.setCurrentQuestion(q.id))}
-                     className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden group ${
+                     className={`w-full text-left p-6 rounded-[2rem] border-2 transition-all duration-300 relative overflow-hidden group ${
                        session.currentQuestionId === q.id 
-                       ? 'bg-indigo-600/10 border-indigo-500/50 shadow-[0_0_30px_rgba(79,70,229,0.15)]' 
+                       ? 'bg-indigo-600/10 border-indigo-500 shadow-[0_0_40px_rgba(79,70,229,0.2)]' 
                        : 'bg-white/5 border-white/5 hover:border-white/20'
                      }`}
                    >
-                     {session.currentQuestionId === q.id && <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />}
-                     <div className="flex gap-2 mb-2">
-                       <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${session.currentQuestionId === q.id ? 'bg-indigo-500 text-white' : 'bg-slate-800 text-slate-500'}`}>{q.roundType}</span>
-                       <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/5 ${session.currentQuestionId === q.id ? 'text-white' : `text-${getDifficultyColor(q.difficulty)}-400`}`}>{q.difficulty}</span>
+                     {session.currentQuestionId === q.id && <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />}
+                     <div className="flex gap-2.5 mb-3">
+                       <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${session.currentQuestionId === q.id ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-500'}`}>{q.roundType}</span>
+                       <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-lg border border-white/5 ${session.currentQuestionId === q.id ? 'text-white' : `text-${getDifficultyColor(q.difficulty)}-400`}`}>{q.difficulty}</span>
                      </div>
                      <p className={`text-xs font-bold leading-relaxed line-clamp-2 ${session.currentQuestionId === q.id ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>{q.text}</p>
                    </button>
@@ -151,102 +164,105 @@ const AdminView: React.FC = () => {
             </Card>
           </div>
 
-          {/* CENTER: PRIMARY CONTROLS */}
-          <div className="lg:col-span-6 space-y-6">
-            <Card className="border-t-4 border-t-indigo-600 overflow-hidden" noPadding>
-              <div className="bg-slate-900/50 p-6 grid grid-cols-4 gap-3 border-b border-white/10">
-                <ControlButton status={QuizStatus.PREVIEW} label="Sync" icon={Eye} variant="primary" desc="Preview Mode" />
+          {/* CENTER: COMMAND CENTER */}
+          <div className="lg:col-span-6 space-y-8">
+            <Card className="border-t-[6px] border-t-indigo-600 overflow-hidden" noPadding>
+              <div className="bg-slate-900/60 p-8 grid grid-cols-4 gap-4 border-b border-white/10">
+                <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
                 <ControlButton status={QuizStatus.LIVE} label="Energize" icon={Play} variant="success" desc="Start Engine" />
-                <ControlButton status={QuizStatus.LOCKED} label="Freeze" icon={LockIcon} variant="danger" desc="Lock Buffer" />
+                <ControlButton status={QuizStatus.LOCKED} label="Freeze" icon={LockIcon} variant="danger" desc="Lock Uplink" />
                 <button
                   onClick={() => performAction(API.revealAnswerAndProcessScores)} 
-                  className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 h-28 transition-all group ${
+                  className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 h-32 transition-all duration-500 group ${
                     session.status === QuizStatus.REVEALED 
-                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-[0_0_30px_rgba(79,70,229,0.4)]' 
-                    : 'bg-white/5 border-white/10 hover:bg-white/10'
+                    ? 'bg-indigo-600 text-white border-indigo-500 shadow-[0_0_50px_rgba(79,70,229,0.5)]' 
+                    : 'bg-white/5 border-white/5 hover:bg-white/10'
                   }`}
                 >
-                   <CheckCircle className={`w-6 h-6 mb-2 ${session.status === QuizStatus.REVEALED ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-                   <span className="font-black uppercase text-xs tracking-tighter">Reveal</span>
-                   <span className="text-[8px] font-bold uppercase mt-1 opacity-50">Results</span>
+                   <CheckCircle className={`w-7 h-7 mb-3 ${session.status === QuizStatus.REVEALED ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                   <span className="font-black uppercase text-[10px] tracking-widest">Reveal</span>
+                   <span className="text-[8px] font-bold uppercase mt-1 opacity-40">Process Data</span>
                 </button>
               </div>
 
-              <div className="p-10 min-h-[450px] relative">
+              <div className="p-12 min-h-[500px] relative">
                 {currentQuestion ? (
-                  <div className="space-y-10 animate-in slide-in-from-bottom-4 duration-500">
+                  <div className="space-y-12 animate-in slide-in-from-bottom-8 duration-700">
                     <div className="flex justify-between items-start">
-                      <div className="space-y-2">
-                         <div className="flex gap-2">
+                      <div className="space-y-3">
+                         <div className="flex gap-3">
                            <Badge color={getDifficultyColor(currentQuestion.difficulty)}>{currentQuestion.difficulty}</Badge>
-                           <Badge color="slate">{currentQuestion.points} Credits</Badge>
+                           <Badge color="slate">{currentQuestion.points} CREDITS</Badge>
                          </div>
-                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">Sequence ID: {currentQuestion.id}</p>
+                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-2">Node Reference: {currentQuestion.id}</p>
                       </div>
-                      <div className="bg-white/5 p-4 rounded-2xl border border-white/10 max-w-[200px]">
-                         <div className="flex items-center gap-2 mb-1 text-indigo-400">
-                            <Sparkles className="w-3 h-3" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Active Hint</span>
+                      <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 max-w-[280px] shadow-inner">
+                         <div className="flex items-center gap-2.5 mb-2 text-indigo-400">
+                            <Sparkles className="w-4 h-4" />
+                            <span className="text-[10px] font-black uppercase tracking-[0.3em]">Tactical Feed</span>
                          </div>
-                         <p className="text-[11px] font-bold italic text-slate-300">"{currentQuestion.hint}"</p>
+                         <p className="text-xs font-bold italic text-slate-300 leading-relaxed">"{currentQuestion.hint}"</p>
                       </div>
                     </div>
 
-                    <h2 className="text-4xl font-black text-white leading-[1.15] tracking-tight">{currentQuestion.text}</h2>
+                    <h2 className="text-4xl md:text-5xl font-black text-white leading-[1.1] tracking-tighter">{currentQuestion.text}</h2>
                     
-                    <div className="grid gap-3">
+                    <div className="grid gap-4">
                       {currentQuestion.options.map((opt, i) => (
-                         <div key={i} className={`p-5 rounded-2xl border-2 flex items-center gap-5 transition-all duration-300 ${
+                         <div key={i} className={`p-6 rounded-[2.5rem] border-2 flex items-center gap-6 transition-all duration-500 ${
                            i === currentQuestion.correctAnswer 
-                           ? 'bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_20px_rgba(16,185,129,0.1)]' 
+                           ? 'bg-emerald-500/10 border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.15)]' 
                            : 'bg-white/5 border-white/5'
                          }`}>
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-lg ${
                               i === currentQuestion.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'
                             }`}>
                               {String.fromCharCode(65+i)}
                             </div>
-                            <span className={`font-bold text-xl ${i === currentQuestion.correctAnswer ? 'text-white' : 'text-slate-400'}`}>{opt}</span>
-                            {i === currentQuestion.correctAnswer && <div className="ml-auto w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,1)]" />}
+                            <span className={`font-black text-2xl tracking-tight ${i === currentQuestion.correctAnswer ? 'text-emerald-300' : 'text-slate-400'}`}>{opt}</span>
+                            {i === currentQuestion.correctAnswer && <div className="ml-auto w-3 h-3 rounded-full bg-emerald-500 shadow-[0_0_20px_rgba(16,185,129,1)]" />}
                          </div>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <div className="h-[300px] flex flex-col items-center justify-center text-center opacity-30">
-                     <BrainCircuit className="w-20 h-20 mb-6 text-indigo-500" />
-                     <h3 className="text-xl font-black uppercase tracking-[0.3em] text-white">Neural Bridge Ready</h3>
-                     <p className="mt-2 text-sm font-bold uppercase text-slate-500">Select a fragment to initialize</p>
+                  <div className="h-[400px] flex flex-col items-center justify-center text-center opacity-40">
+                     <div className="relative mb-10">
+                       <div className="absolute inset-0 bg-indigo-500/20 blur-3xl animate-pulse" />
+                       <BrainCircuit className="w-24 h-24 text-indigo-500 relative z-10" />
+                     </div>
+                     <h3 className="text-2xl font-black uppercase tracking-[0.4em] text-white">Neural Uplink Ready</h3>
+                     <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500">Select a data node to initialize bridge</p>
                   </div>
                 )}
               </div>
             </Card>
           </div>
 
-          {/* RIGHT: TELEMETRY & RANKING */}
-          <div className="lg:col-span-3 space-y-6">
-             <Card className="h-[400px] flex flex-col" noPadding>
-                <div className="p-5 border-b border-white/5 flex items-center justify-between">
-                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Live Stream</h3>
-                   <Activity className="w-4 h-4 text-indigo-500 animate-pulse" />
+          {/* RIGHT: ANALYTICS & RANKING */}
+          <div className="lg:col-span-3 space-y-8">
+             <Card className="h-[450px] flex flex-col" noPadding>
+                <div className="p-7 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Live Logs</h3>
+                   <Activity className="w-5 h-5 text-indigo-500 animate-pulse" />
                 </div>
-                <div className="flex-grow overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                <div className="flex-grow overflow-y-auto p-6 space-y-4 custom-scrollbar">
                    {session.submissions.length === 0 ? (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-2 opacity-50">
-                         <MessageSquare className="w-8 h-8" />
-                         <span className="text-[10px] font-black uppercase tracking-widest">No Active Feedback</span>
+                      <div className="h-full flex flex-col items-center justify-center text-slate-600 space-y-4 opacity-40">
+                         <MessageSquare className="w-10 h-10" />
+                         <span className="text-[9px] font-black uppercase tracking-[0.3em]">No Active Telemetry</span>
                       </div>
                    ) : (
                      session.submissions.map((s, i) => {
                         const team = session.teams.find(t => t.id === s.teamId);
                         return (
-                          <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5 group hover:bg-white/10 transition-colors">
+                          <div key={i} className="flex items-center gap-5 p-5 bg-white/5 rounded-3xl border border-white/5 group hover:bg-white/10 transition-all">
                              <div className="flex-grow">
-                                <p className="text-xs font-black text-white uppercase">{team?.name}</p>
-                                <p className="text-[9px] text-slate-500 font-bold uppercase mt-0.5 tracking-widest">{s.type} LOGGED</p>
+                                <p className="text-sm font-black text-white uppercase tracking-tight">{team?.name}</p>
+                                <p className="text-[9px] text-slate-500 font-bold uppercase mt-1 tracking-widest">{s.type} RECEIVED</p>
                              </div>
-                             <div className={`px-2 py-1 rounded text-[9px] font-black uppercase ${s.isCorrect ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
-                                {s.isCorrect ? 'VALID' : 'INVALID'}
+                             <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase border ${s.isCorrect ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' : 'text-rose-400 bg-rose-500/10 border-rose-500/20'}`}>
+                                {s.isCorrect ? 'HIT' : 'MISS'}
                              </div>
                           </div>
                         );
@@ -255,21 +271,21 @@ const AdminView: React.FC = () => {
                 </div>
              </Card>
 
-             <Card noPadding>
-                <div className="p-5 border-b border-white/5 flex items-center justify-between">
-                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Neural Rankings</h3>
-                   <Star className="w-4 h-4 text-amber-500" />
+             <Card noPadding className="flex-grow">
+                <div className="p-7 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                   <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Neural Ranking</h3>
+                   <Star className="w-5 h-5 text-amber-500" />
                 </div>
-                <div className="p-4 space-y-2">
+                <div className="p-6 space-y-3">
                    {session.teams.sort((a,b) => b.score - a.score).map((t, i) => (
-                      <div key={i} className="flex justify-between items-center p-4 rounded-2xl bg-white/5 border border-white/5 hover:border-indigo-500/20 transition-all group">
-                         <div className="flex items-center gap-3">
-                            <span className="text-[10px] font-black text-slate-600 group-hover:text-indigo-500">0{i+1}</span>
-                            <span className="text-sm font-black text-slate-200 uppercase tracking-tight">{t.name}</span>
+                      <div key={i} className="flex justify-between items-center p-5 rounded-[2rem] bg-white/5 border border-white/5 hover:border-indigo-500/30 transition-all group">
+                         <div className="flex items-center gap-4">
+                            <span className="text-[10px] font-black text-slate-600 group-hover:text-indigo-500">#{i+1}</span>
+                            <span className="text-base font-black text-slate-200 uppercase tracking-tight">{t.name}</span>
                          </div>
                          <div className="text-right">
-                            <span className="text-lg font-black text-white tabular-nums">{t.score}</span>
-                            <span className="text-[8px] block text-slate-600 font-bold uppercase tracking-widest">Credits</span>
+                            <span className="text-xl font-black text-white tabular-nums italic">{t.score}</span>
+                            <span className="text-[8px] block text-slate-600 font-bold uppercase tracking-widest">CR</span>
                          </div>
                       </div>
                    ))}
