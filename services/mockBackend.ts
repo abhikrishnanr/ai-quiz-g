@@ -17,7 +17,8 @@ const DEFAULT_SESSION: QuizSession = {
   scoringMode: 'FIRST_RESPONSE',
   activeTeamId: null,
   turnStartTime: 0,
-  passCount: 0
+  passCount: 0,
+  isReading: false
 };
 
 // Helper to load/save from localStorage
@@ -56,6 +57,7 @@ const passTurnInternal = (session: QuizSession) => {
   session.activeTeamId = session.teams[nextIndex].id;
   session.turnStartTime = Date.now();
   session.passCount++;
+  // Reset reading status for the new team if we wanted re-reading, but usually pass just continues.
 };
 
 export const QuizService = {
@@ -63,7 +65,6 @@ export const QuizService = {
     let session = loadSession();
 
     // Check for Auto-Pass in Standard rounds (Simulated time-based logic)
-    // Only trigger this if we are in a 'driver' context or just lazily update on read
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
     if (
       session.status === QuizStatus.LIVE && 
@@ -86,6 +87,9 @@ export const QuizService = {
     if (status === QuizStatus.LIVE) {
       session.startTime = Date.now();
       session.turnStartTime = Date.now();
+      session.isReading = true; // Start reading phase
+    } else {
+      session.isReading = false;
     }
     saveSession(session);
     return session;
@@ -98,6 +102,7 @@ export const QuizService = {
     session.status = QuizStatus.PREVIEW;
     session.submissions = [];
     session.passCount = 0;
+    session.isReading = false;
     
     if (question) {
       session.scoringMode = question.roundType === 'BUZZER' ? 'FIRST_RESPONSE' : 'STANDARD';
@@ -137,6 +142,7 @@ export const QuizService = {
           
           if (question?.roundType === 'STANDARD' && teamId === session.activeTeamId) {
             session.status = QuizStatus.LOCKED;
+            session.isReading = false;
           }
        }
     }
@@ -148,6 +154,7 @@ export const QuizService = {
   revealAndScore: async (): Promise<QuizSession> => {
     let session = loadSession();
     session.status = QuizStatus.REVEALED;
+    session.isReading = false;
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
     if (!currentQuestion) {
         saveSession(session);
@@ -196,6 +203,17 @@ export const QuizService = {
   forcePass: async (): Promise<QuizSession> => {
     let session = loadSession();
     passTurnInternal(session);
+    saveSession(session);
+    return session;
+  },
+
+  completeReading: async (): Promise<QuizSession> => {
+    let session = loadSession();
+    if (session.status === QuizStatus.LIVE) {
+      session.isReading = false;
+      // Reset turn start time to now so the 30s timer is accurate for the thinking phase
+      session.turnStartTime = Date.now();
+    }
     saveSession(session);
     return session;
   }

@@ -46,6 +46,7 @@ export interface QuizSession {
   teams: Team[];
   submissions: Submission[];
   scoringMode: 'FIRST_RESPONSE' | 'STANDARD';
+  isReading?: boolean; // Indicates if the host is currently reading the question
 }
 
 export interface APIResponse<T> {

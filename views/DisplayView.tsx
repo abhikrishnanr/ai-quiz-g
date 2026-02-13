@@ -35,7 +35,6 @@ const DisplayView: React.FC = () => {
   const [commentary, setCommentary] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
-  const [isReadingQuestion, setIsReadingQuestion] = useState(false);
   const [timerStartAt, setTimerStartAt] = useState<number | null>(null);
   
   // State tracking for event triggers
@@ -50,6 +49,9 @@ const DisplayView: React.FC = () => {
   const preloadedResultAudioRef = useRef<{ id: string; audio: string; text: string } | null>(null); // Result commentary
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
+  // We use the active team from session, but in preview it might not be fully set for 'next' turn if logic was complex.
+  // However, QuizService.setQuestion sets activeTeamId for standard rounds immediately.
+  const activeTeam = session?.teams.find(t => t.id === session.activeTeamId);
 
   // Initialize Audio Context on user interaction
   const initAudio = () => {
@@ -71,7 +73,7 @@ const DisplayView: React.FC = () => {
         preloadedResultAudioRef.current = null;
         
         const fetchAudio = async () => {
-            const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
+            const textToRead = API.formatQuestionForSpeech(currentQuestion, activeTeam?.name);
             const audioData = await API.generateBodhiniAudio(textToRead);
             if (audioData) {
                 preloadedAudioRef.current = audioData;
@@ -79,23 +81,20 @@ const DisplayView: React.FC = () => {
         };
         fetchAudio();
     }
-  }, [session?.status, session?.currentQuestionId, currentQuestion]);
+  }, [session?.status, session?.currentQuestionId, currentQuestion, activeTeam?.name]);
 
   // 2. Pre-fetch Result Audio (LOCKED or Submissions Exist)
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
     // We pre-calculate result audio as soon as we have a submission or lock
-    // This ensures that when the admin hits "Reveal", the audio is already ready.
     const prepareResultAudio = async () => {
         const lastSub = session.submissions[session.submissions.length - 1];
         
-        // Create a unique cache ID based on the submission state
         const cacheId = lastSub 
             ? `${lastSub.teamId}-${lastSub.timestamp}-${currentQuestion.id}` 
             : `no-subs-${currentQuestion.id}`;
 
-        // If we already have this specific outcome cached, do nothing
         if (preloadedResultAudioRef.current?.id === cacheId) return;
 
         let context = "";
@@ -107,7 +106,6 @@ const DisplayView: React.FC = () => {
             context = `No answer received. The correct answer is ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
         }
 
-        // Trigger generation if we are Locked OR have submissions (anticipating reveal)
         if (session.submissions.length > 0 || session.status === QuizStatus.LOCKED) {
              try {
                 const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion.text, context);
@@ -131,18 +129,22 @@ const DisplayView: React.FC = () => {
   // Timer Logic - Starts ONLY after reading is complete
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
-      if (isReadingQuestion) {
+      if (session.isReading) {
           setTurnTimeLeft(30);
           return;
       }
       if (!timerStartAt) {
-          setTimerStartAt(Date.now());
+          // Sync with server turnStartTime if possible, or local fall back
+          setTimerStartAt(session.turnStartTime || Date.now());
       }
+      
       const interval = setInterval(() => {
-        if (!timerStartAt) return;
-        const elapsed = Math.floor((Date.now() - timerStartAt) / 1000);
+        // Recalculate based on current time vs turn start time for accuracy
+        const startTime = session.turnStartTime || timerStartAt || Date.now();
+        const elapsed = Math.floor((Date.now() - startTime) / 1000);
         const remaining = Math.max(0, 30 - elapsed);
         setTurnTimeLeft(remaining);
+        
         if (remaining <= 5 && remaining > 0) {
             SFX.playTimerTick();
         }
@@ -151,10 +153,9 @@ const DisplayView: React.FC = () => {
     } else {
         if (session?.status !== QuizStatus.LIVE) {
             setTimerStartAt(null);
-            setIsReadingQuestion(false);
         }
     }
-  }, [session?.status, currentQuestion, isReadingQuestion, timerStartAt]);
+  }, [session?.status, currentQuestion, session?.isReading, session?.turnStartTime, timerStartAt]);
 
   const playBodhiniSpeech = async (text: string, isCommentary: boolean = true, preloadedBase64?: string) => {
     if (!audioInitialized || !audioContextRef.current) return;
@@ -180,17 +181,19 @@ const DisplayView: React.FC = () => {
         setIsSpeaking(false);
         if (isCommentary) setTimeout(() => setCommentary(""), 2000);
         
-        if (!isCommentary && isReadingQuestion) {
-            setIsReadingQuestion(false);
+        // If this was the question reading phase, signal completion to backend
+        if (!isCommentary && session?.isReading) {
+            API.completeReading();
         }
       };
       source.start();
     } else {
+      // Fallback if no audio
       setIsSpeaking(true);
       setTimeout(() => {
          setIsSpeaking(false);
          if (isCommentary) setCommentary("");
-         if (!isCommentary && isReadingQuestion) setIsReadingQuestion(false);
+         if (!isCommentary && session?.isReading) API.completeReading();
       }, 3000);
     }
   };
@@ -203,7 +206,6 @@ const DisplayView: React.FC = () => {
     if (session.status === QuizStatus.PREVIEW && lastStatusRef.current !== QuizStatus.PREVIEW) {
         setCommentary("");
         setIsSpeaking(false);
-        setIsReadingQuestion(false);
         setTimerStartAt(null);
     }
 
@@ -212,8 +214,7 @@ const DisplayView: React.FC = () => {
        if (session.currentQuestionId && currentQuestion) {
           SFX.playIntro();
           
-          setIsReadingQuestion(true);
-          const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
+          const textToRead = API.formatQuestionForSpeech(currentQuestion, activeTeam?.name);
           
           // Use preloaded question audio
           const audio = preloadedAudioRef.current;
@@ -243,21 +244,17 @@ const DisplayView: React.FC = () => {
          const lastSub = session.submissions[session.submissions.length - 1];
          const isCorrect = lastSub ? !!lastSub.isCorrect : false;
          
-         // Play SFX immediately
          if (isCorrect) SFX.playCorrect();
          else SFX.playWrong();
 
          // Use Preloaded Result Audio if available for Instant Playback
-         // We construct the ID again to verify match
          const cacheId = lastSub 
             ? `${lastSub.teamId}-${lastSub.timestamp}-${currentQuestion?.id}` 
             : `no-subs-${currentQuestion?.id}`;
 
          if (preloadedResultAudioRef.current && preloadedResultAudioRef.current.id === cacheId) {
-             // Instant playback from cache
              playBodhiniSpeech(preloadedResultAudioRef.current.text, true, preloadedResultAudioRef.current.audio);
          } else {
-             // Fallback (cache miss)
              let context = "No answer.";
              if (lastSub) {
                 const team = session.teams.find(t => t.id === lastSub.teamId);
@@ -282,7 +279,6 @@ const DisplayView: React.FC = () => {
 
   if (loading || !session) return null;
 
-  const activeTeam = session.teams.find(t => t.id === session.activeTeamId);
   const isIdle = !session.currentQuestionId;
   const isPreview = session.status === QuizStatus.PREVIEW;
   const isQuestionVisible = session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED || session.status === QuizStatus.REVEALED;
@@ -318,7 +314,6 @@ const DisplayView: React.FC = () => {
       <div className="relative z-10 w-full h-screen grid grid-cols-12 gap-8 p-8">
         
         {/* Left Column: AI Avatar */}
-        {/* If in PREVIEW or IDLE, Avatar takes center stage */}
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 ${
             isPreview || isIdle ? 'col-span-12 scale-150' : 'col-span-4 scale-100'
         }`}>
@@ -329,14 +324,19 @@ const DisplayView: React.FC = () => {
                    <Badge color="indigo">INCOMING SEQUENCE</Badge>
                    <h2 className="text-5xl font-black text-white mt-4 tracking-tighter uppercase">{currentQuestion.roundType} ROUND</h2>
                    <p className="text-indigo-400 font-bold uppercase tracking-[0.3em] mt-2">Value: {currentQuestion.points} Credits</p>
+                   {currentQuestion.roundType === 'STANDARD' && activeTeam && (
+                        <div className="mt-4 p-4 bg-white/5 rounded-xl border border-white/10">
+                           <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Active Team</p>
+                           <p className="text-2xl font-black text-white uppercase">{activeTeam.name}</p>
+                        </div>
+                   )}
                </div>
            )}
         </div>
 
-        {/* Right Column: Content Overlay (Only visible when engaged) */}
+        {/* Right Column: Content Overlay */}
         {isQuestionVisible && (
           <div className="col-span-8 flex flex-col justify-center h-full animate-in slide-in-from-right duration-700 pl-8">
-             
                <div className="space-y-8">
                   {/* Header Status */}
                   <div className="flex justify-between items-center">
@@ -351,6 +351,19 @@ const DisplayView: React.FC = () => {
 
                   {/* Question Card */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-[3rem] shadow-2xl relative overflow-hidden group">
+                     {/* Lock Overlay for Reading Phase */}
+                     {session.isReading && currentQuestion?.roundType === 'BUZZER' && (
+                         <div className="absolute inset-0 bg-amber-950/80 backdrop-blur-sm flex items-center justify-center z-30 animate-in fade-in">
+                           <div className="text-center">
+                              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                                  <LockIcon className="w-8 h-8 text-amber-500" />
+                              </div>
+                              <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">BODHINI IS SPEAKING</h3>
+                              <p className="text-amber-200 mt-2 font-bold uppercase tracking-wider text-xs">Buzzers Locked</p>
+                           </div>
+                         </div>
+                     )}
+
                      {session.status === QuizStatus.LOCKED && (
                         <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-20 animate-in fade-in">
                            <div className="text-center">
@@ -398,7 +411,7 @@ const DisplayView: React.FC = () => {
                         <div className="flex items-center gap-4">
                            <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700">
                               <Timer seconds={turnTimeLeft} max={30} />
-                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{isReadingQuestion ? 'READING QUESTION...' : `${turnTimeLeft}s REMAINING`}</p>
+                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{session.isReading ? 'READING QUESTION...' : `${turnTimeLeft}s REMAINING`}</p>
                            </div>
                            {activeTeam && (
                               <div className="text-left">

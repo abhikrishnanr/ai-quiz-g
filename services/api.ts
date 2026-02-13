@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Modality } from "@google/genai";
-import { QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
+import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
 import { QuizService } from './mockBackend';
 
 export const API = {
@@ -32,15 +32,15 @@ export const API = {
     return QuizService.forcePass();
   },
 
+  completeReading: async (): Promise<QuizSession> => {
+    return QuizService.completeReading();
+  },
+
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
     try {
       const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const model = 'gemini-3-flash-preview';
       
-      // Prompt updated for:
-      // 1. Sweet, Melodic voice persona.
-      // 2. Natural Indian English.
-      // 3. Clear, concise delivery.
       const prompt = `
         You are 'Bodhini', an AI quiz host with a sweet, warm, and melodic voice, speaking in polite Indian English.
         
@@ -73,9 +73,6 @@ export const API = {
   generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      // Using 'Aoede' for a sweeter, more expressive voice if available, otherwise fallback logic implies Kore.
-      // Note: 'Aoede' is often available in newer endpoints. If not, 'Kore' is standard. 
-      // We will try 'Kore' but rely on the input text style.
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -95,9 +92,15 @@ export const API = {
     }
   },
 
-  // Helper to construct the natural reading of a question
-  formatQuestionForSpeech: (text: string, options: string[]): string => {
-    const opts = options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
-    return `Question: ${text}. The options are: ${opts}.`;
+  formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
+    
+    if (question.roundType === 'BUZZER') {
+      return `Buzzer Round! Fastest finger wins. Plus ${question.points} for correct, minus 50 for incorrect. Here is the question: ${question.text}. The options are: ${opts}.`;
+    } else {
+      // Standard Round
+      const intro = activeTeamName ? `Question for team ${activeTeamName}.` : "Question for the active team.";
+      return `${intro} ${question.text}. The options are: ${opts}.`;
+    }
   }
 };

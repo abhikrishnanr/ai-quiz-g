@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { QuizStatus, SubmissionType } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 import { Badge, Card, Button } from '../components/SharedUI';
-import { CheckCircle2, AlertCircle, Clock, Zap, Forward, Lock as LockIcon, MessageSquare, User, LogOut } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Zap, Forward, Lock as LockIcon, MessageSquare, User, LogOut, Volume2 } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 const TeamView: React.FC = () => {
@@ -119,7 +119,24 @@ const TeamView: React.FC = () => {
 
     if (session.status === QuizStatus.LIVE) {
       const isBuzzer = currentQuestion?.roundType === 'BUZZER';
-      const canInteract = isBuzzer || isMyTurn;
+      // Strict locking for buzzer rounds during reading
+      const isReadingLocked = isBuzzer && session.isReading;
+      const canInteract = (isBuzzer || isMyTurn) && !isReadingLocked;
+
+      if (isReadingLocked) {
+         return (
+            <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-8 animate-in fade-in">
+                <div className="w-32 h-32 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto relative">
+                    <div className="absolute inset-0 border-2 border-amber-500 rounded-full animate-ping opacity-20" />
+                    <Volume2 className="w-12 h-12 text-amber-500 animate-pulse" />
+                </div>
+                <div>
+                   <h2 className="text-3xl font-black text-slate-900 uppercase tracking-tight mb-2">Listen Closely</h2>
+                   <p className="text-amber-600 font-bold uppercase tracking-widest text-xs animate-pulse">Bodhini is reading the question...</p>
+                </div>
+            </div>
+         );
+      }
 
       return (
         <div className="space-y-6 animate-in slide-in-from-bottom duration-500 pb-24">
