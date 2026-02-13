@@ -120,16 +120,17 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
+    // Updated format for better TTS separation of options
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
     
     if (question.roundType === 'BUZZER') {
-      return `Buzzer Round for ${question.points} credits! Hands on buttons. Correct answer gains points, incorrect loses fifty. Here is the question: ${question.text}. The options are: ${opts}.`;
+      return `Buzzer Round for ${question.points} credits! Hands on buttons. Here is the question: ${question.text}. ${opts}.`;
     } else {
       // Standard Round
       const intro = activeTeamName 
         ? `Standard Round. Question for ${activeTeamName}.` 
         : "Standard Round.";
-      return `${intro} ${question.text}. The options are: ${opts}.`;
+      return `${intro} ${question.text}. ${opts}.`;
     }
   }
 };

@@ -118,8 +118,11 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
         
-        // Clear old result cache but keep generals and team clips
-        const preservePrefixes = ['warning_', 'generic_', 'locked_', 'pass_', 'question_'];
+        // CRITICAL FIX: Explicitly delete the old question reading audio
+        // This ensures we don't replay the previous question
+        delete audioCacheRef.current['question_read'];
+        
+        // Clear old result cache
         Object.keys(audioCacheRef.current).forEach(key => {
             if (key.startsWith('result_')) delete audioCacheRef.current[key];
         });
