@@ -38,11 +38,11 @@ export const API = {
       const model = 'gemini-3-flash-preview';
       
       // Prompt updated for:
-      // 1. Faster/Punchier delivery (short sentences).
-      // 2. High energy Indian English persona named Bodhini.
-      // 3. Explicit "Shouting" for results.
+      // 1. Sweet, Melodic voice persona.
+      // 2. Natural Indian English.
+      // 3. Clear, concise delivery.
       const prompt = `
-        You are 'Bodhini', a high-energy, fast-talking AI quiz host with a polished Indian English accent.
+        You are 'Bodhini', an AI quiz host with a sweet, warm, and melodic voice, speaking in polite Indian English.
         
         Current Status: ${status}
         ${questionText ? `Question: "${questionText}"` : ''}
@@ -50,12 +50,11 @@ export const API = {
 
         Rules:
         1. If status is REVEALED:
-           - Start with "CORRECT!" or "WRONG!" in all caps immediately.
-           - Then give a super brief (10 words max) witty comment on why.
-           - Be dramatic.
+           - Announce the result ("Correct!" or "Oh no, that is incorrect") with emotion.
+           - Add a very brief, encouraging comment (max 8 words).
         2. If status is LIVE:
-           - One short punchy sentence to hype the teams. "fingers on buzzers!" or "Time is ticking!"
-        3. Keep total word count under 20.
+           - A quick, sweet encouragement. "Here is your question." or "Time starts now."
+        3. Keep it short.
         4. No quotes.
       `;
 
@@ -74,6 +73,9 @@ export const API = {
   generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      // Using 'Aoede' for a sweeter, more expressive voice if available, otherwise fallback logic implies Kore.
+      // Note: 'Aoede' is often available in newer endpoints. If not, 'Kore' is standard. 
+      // We will try 'Kore' but rely on the input text style.
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
@@ -81,7 +83,7 @@ export const API = {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore is the standard female, we rely on prompt for speed
+              prebuiltVoiceConfig: { voiceName: 'Kore' }, 
             },
           },
         },
@@ -91,5 +93,11 @@ export const API = {
       console.error("TTS Error:", error);
       return undefined;
     }
+  },
+
+  // Helper to construct the natural reading of a question
+  formatQuestionForSpeech: (text: string, options: string[]): string => {
+    const opts = options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
+    return `Question: ${text}. The options are: ${opts}.`;
   }
 };

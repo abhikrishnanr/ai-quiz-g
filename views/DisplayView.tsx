@@ -35,6 +35,8 @@ const DisplayView: React.FC = () => {
   const [commentary, setCommentary] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
+  const [isReadingQuestion, setIsReadingQuestion] = useState(false);
+  const [timerStartAt, setTimerStartAt] = useState<number | null>(null);
   
   // State tracking for event triggers
   const lastQuestionIdRef = useRef<string | null>(null);
@@ -42,6 +44,7 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
+  const preloadedAudioRef = useRef<string | null>(null); // Store base64 audio
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
 
@@ -58,22 +61,55 @@ const DisplayView: React.FC = () => {
     setAudioInitialized(true);
   };
 
-  // Timer Logic
+  // Pre-fetch Question Audio when in PREVIEW
   useEffect(() => {
-    if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && session.turnStartTime) {
+    if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
+        const fetchAudio = async () => {
+            const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
+            const audioData = await API.generateBodhiniAudio(textToRead);
+            if (audioData) {
+                preloadedAudioRef.current = audioData;
+            }
+        };
+        fetchAudio();
+    }
+  }, [session?.status, session?.currentQuestionId, currentQuestion]);
+
+  // Timer Logic - Starts ONLY after reading is complete
+  useEffect(() => {
+    if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
+      // If we are currently reading, hold the timer at 30
+      if (isReadingQuestion) {
+          setTurnTimeLeft(30);
+          return;
+      }
+
+      // Initialize the start timestamp once reading finishes
+      if (!timerStartAt) {
+          setTimerStartAt(Date.now());
+      }
+
       const interval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - session.turnStartTime!) / 1000);
+        if (!timerStartAt) return;
+        const elapsed = Math.floor((Date.now() - timerStartAt) / 1000);
         const remaining = Math.max(0, 30 - elapsed);
         setTurnTimeLeft(remaining);
+        
         if (remaining <= 5 && remaining > 0) {
             SFX.playTimerTick();
         }
       }, 100);
       return () => clearInterval(interval);
+    } else {
+        // Reset local timer state when not LIVE standard
+        if (session?.status !== QuizStatus.LIVE) {
+            setTimerStartAt(null);
+            setIsReadingQuestion(false);
+        }
     }
-  }, [session?.status, session?.turnStartTime, currentQuestion]);
+  }, [session?.status, currentQuestion, isReadingQuestion, timerStartAt]);
 
-  const playBodhiniSpeech = async (text: string, isCommentary: boolean = true) => {
+  const playBodhiniSpeech = async (text: string, isCommentary: boolean = true, preloadedBase64?: string) => {
     if (!audioInitialized || !audioContextRef.current) return;
     const ctx = audioContextRef.current;
     
@@ -84,7 +120,7 @@ const DisplayView: React.FC = () => {
 
     if (isCommentary) setCommentary(text);
     
-    const audioBase64 = await API.generateBodhiniAudio(text);
+    const audioBase64 = preloadedBase64 || await API.generateBodhiniAudio(text);
     
     if (audioBase64) {
       setIsSpeaking(true);
@@ -97,6 +133,11 @@ const DisplayView: React.FC = () => {
       source.onended = () => {
         setIsSpeaking(false);
         if (isCommentary) setTimeout(() => setCommentary(""), 2000);
+        
+        // If this was the question reading, release the timer
+        if (!isCommentary && isReadingQuestion) {
+            setIsReadingQuestion(false);
+        }
       };
       source.start();
     } else {
@@ -104,6 +145,7 @@ const DisplayView: React.FC = () => {
       setTimeout(() => {
          setIsSpeaking(false);
          if (isCommentary) setCommentary("");
+         if (!isCommentary && isReadingQuestion) setIsReadingQuestion(false);
       }, 3000);
     }
   };
@@ -112,21 +154,35 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session) return;
 
-    // 1. PREVIEW Mode -> Intro/Transition (No Speech, just visuals)
+    // 1. PREVIEW Mode -> Reset states
     if (session.status === QuizStatus.PREVIEW && lastStatusRef.current !== QuizStatus.PREVIEW) {
         setCommentary("");
         setIsSpeaking(false);
+        setIsReadingQuestion(false);
+        setTimerStartAt(null);
     }
 
-    // 2. LIVE Mode Detected (Engaged) -> Read Question
+    // 2. LIVE Mode Detected -> Read Question (Using Preloaded if available)
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        if (session.currentQuestionId && currentQuestion) {
-          SFX.playIntro(); // Whoosh sound for question reveal
-          playBodhiniSpeech(`Question. ${currentQuestion.text}`, false);
+          SFX.playIntro();
+          
+          // Mark that we are reading, so timer pauses
+          setIsReadingQuestion(true);
+          
+          // Construct text for fallback
+          const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
+          
+          // Use preloaded audio if valid, otherwise fetch
+          const audio = preloadedAudioRef.current;
+          // Clear cache to avoid reusing
+          preloadedAudioRef.current = null;
+          
+          playBodhiniSpeech(textToRead, false, audio || undefined);
        }
     }
 
-    // 3. New Submission in Standard Mode -> "Locked" sound + Speech
+    // 3. New Submission -> "Locked"
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
@@ -135,15 +191,14 @@ const DisplayView: React.FC = () => {
           SFX.playLock();
           playBodhiniSpeech(`Locked.`, false);
        } else if (currentQuestion?.roundType === 'BUZZER') {
-          SFX.playLock(); // Just sound for buzzers to keep it fast
+          SFX.playLock();
        }
        lastSubmissionCountRef.current = session.submissions.length;
     }
 
-    // 4. Status Changed to REVEALED -> SFX + Result Commentary
+    // 4. Status Changed to REVEALED -> Result
     if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
        const processResult = async () => {
-         // Determine context for the AI
          const lastSub = session.submissions[session.submissions.length - 1];
          let context = "No answer.";
          let isCorrect = false;
@@ -154,11 +209,9 @@ const DisplayView: React.FC = () => {
             context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
          }
          
-         // Play SFX immediately
          if (isCorrect) SFX.playCorrect();
          else SFX.playWrong();
 
-         // Get commentary
          const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
          playBodhiniSpeech(insight, true);
        };
@@ -169,6 +222,8 @@ const DisplayView: React.FC = () => {
     if (session.currentQuestionId !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestionId;
         lastSubmissionCountRef.current = 0;
+        // Also reset preload on question change
+        preloadedAudioRef.current = null;
     }
 
   }, [session?.status, session?.currentQuestionId, session?.submissions.length, session?.id]);
@@ -291,7 +346,7 @@ const DisplayView: React.FC = () => {
                         <div className="flex items-center gap-4">
                            <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700">
                               <Timer seconds={turnTimeLeft} max={30} />
-                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{turnTimeLeft}s REMAINING</p>
+                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{isReadingQuestion ? 'READING QUESTION...' : `${turnTimeLeft}s REMAINING`}</p>
                            </div>
                            {activeTeam && (
                               <div className="text-left">

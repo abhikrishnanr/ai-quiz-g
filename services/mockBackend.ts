@@ -71,7 +71,8 @@ export const QuizService = {
       session.turnStartTime > 0
     ) {
       const elapsed = (Date.now() - session.turnStartTime) / 1000;
-      if (elapsed >= 30) {
+      // INCREASED TIMEOUT: 60s (30s reading + 30s thinking)
+      if (elapsed >= 60) {
         passTurnInternal(session);
         saveSession(session);
       }
