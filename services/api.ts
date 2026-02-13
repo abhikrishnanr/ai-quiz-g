@@ -1,21 +1,40 @@
 
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
+import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
 import { QuizService } from './mockBackend';
 
-// --- Rate Limiter & Queue System ---
-const QUEUE_DELAY_MS = 1500; // 1.5s delay between TTS calls to satisfy rate limits
-const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_V2';
+// --- Configuration ---
+const AWS_CONFIG = {
+  REGION: "us-east-1",
+  ACCESS_KEY: "AKIAWFBMM4PZB6RFGBFR", 
+  SECRET_KEY: "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" 
+};
 
+const QUEUE_DELAY_MS = 500; 
+const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_AWS_POLLY';
+
+// --- AWS Client Initialization ---
+const pollyClient = new PollyClient({
+  region: AWS_CONFIG.REGION,
+  credentials: {
+    accessKeyId: AWS_CONFIG.ACCESS_KEY,
+    secretAccessKey: AWS_CONFIG.SECRET_KEY
+  }
+});
+
+// --- Queue System ---
 type QueueItem = {
   text: string;
+  isSSML: boolean;
   resolve: (value: string | undefined) => void;
 };
 
 const requestQueue: QueueItem[] = [];
 let isProcessingQueue = false;
 
-// Helper to load/save persistent audio cache
+// --- Helper Functions ---
+
 const getPersistentCache = (): Record<string, string> => {
   try {
     const data = localStorage.getItem(STORAGE_KEY_TTS);
@@ -28,54 +47,62 @@ const getPersistentCache = (): Record<string, string> => {
 const saveToPersistentCache = (key: string, base64: string) => {
   try {
     const cache = getPersistentCache();
-    // Simple LRU-ish protection: if cache > 5MB, clear it to be safe (browser limits are usually 5-10MB)
-    if (JSON.stringify(cache).length > 4 * 1024 * 1024) {
+    // Clear cache if it gets too big (approx 5MB)
+    if (JSON.stringify(cache).length > 5 * 1024 * 1024) {
       localStorage.removeItem(STORAGE_KEY_TTS);
       return; 
     }
     cache[key] = base64;
     localStorage.setItem(STORAGE_KEY_TTS, JSON.stringify(cache));
   } catch (e) {
-    console.warn("LocalStorage full, skipping cache save");
+    console.warn("LocalStorage full or error", e);
   }
 };
 
+// Convert AWS Uint8Array to Base64
+const uint8ArrayToBase64 = (u8Arr: Uint8Array): string => {
+  let chunk = "";
+  const len = u8Arr.byteLength;
+  for (let i = 0; i < len; i++) {
+    chunk += String.fromCharCode(u8Arr[i]);
+  }
+  return btoa(chunk);
+};
+
+// --- Queue Processor ---
 const processQueue = async () => {
   if (isProcessingQueue || requestQueue.length === 0) return;
   isProcessingQueue = true;
 
-  const { text, resolve } = requestQueue.shift()!;
+  const { text, isSSML, resolve } = requestQueue.shift()!;
 
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: text }] }],
-      config: {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }, 
-          },
-        },
-      },
+    const command = new SynthesizeSpeechCommand({
+      Text: text,
+      OutputFormat: "mp3",
+      VoiceId: "Aditi", // Indian English Female Neural
+      Engine: "neural",
+      TextType: isSSML ? "ssml" : "text"
     });
 
-    const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (audioData) {
-      // Save to persistent cache
+    const response = await pollyClient.send(command);
+
+    if (response.AudioStream) {
+      const byteArray = await response.AudioStream.transformToByteArray();
+      const base64Audio = uint8ArrayToBase64(byteArray);
+      
       const cacheKey = text.trim().toLowerCase();
-      saveToPersistentCache(cacheKey, audioData);
+      saveToPersistentCache(cacheKey, base64Audio);
+      resolve(base64Audio);
+    } else {
+      resolve(undefined);
     }
-    resolve(audioData);
 
   } catch (error: any) {
-    console.error("TTS Queue Error:", error);
-    // If rate limited, we resolve undefined but we DON'T stop the queue.
-    // We just wait longer.
+    console.error("AWS Polly Error:", error);
     resolve(undefined);
   } finally {
-    // Wait before processing the next item
+    // Small delay to ensure smooth processing order
     setTimeout(() => {
       isProcessingQueue = false;
       processQueue();
@@ -106,7 +133,7 @@ export const API = {
   },
 
   resetSession: async (): Promise<QuizSession> => {
-    localStorage.removeItem(STORAGE_KEY_TTS); // Optional: Clear audio cache on reset
+    localStorage.removeItem(STORAGE_KEY_TTS);
     return QuizService.resetSession();
   },
 
@@ -118,9 +145,17 @@ export const API = {
     return QuizService.completeReading();
   },
 
+  // LLM Text Generation
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
+    // Check if API_KEY is present to prevent crashes if environment isn't set up
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        console.warn("API_KEY not found in environment.");
+        return "Bodhini system ready.";
+    }
+
     try {
-      const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const genAI = new GoogleGenAI({ apiKey });
       const model = 'gemini-3-flash-preview';
       
       const prompt = `
@@ -143,37 +178,45 @@ export const API = {
     }
   },
 
-  // Optimized TTS with Throttling and Persistence
+  // AWS Polly TTS Wrapper
   getTTSAudio: async (text: string): Promise<string | undefined> => {
     const cacheKey = text.trim().toLowerCase();
     
-    // 1. Check Persistent Storage First (Instant)
+    // 1. Check Persistent Storage First
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) {
       return persistentCache[cacheKey];
     }
 
-    // 2. Add to Rate-Limited Queue
+    // 2. Add to Queue
+    // Detect if text uses SSML tags
+    const isSSML = text.includes('<speak>') || text.includes('<break');
+
     return new Promise((resolve) => {
-      requestQueue.push({ text, resolve });
+      requestQueue.push({ text, isSSML, resolve });
       processQueue();
     });
   },
 
+  // Alias for backward compatibility
   generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
     return API.getTTSAudio(text);
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
+    // Using SSML for AWS Polly to control pacing and pauses
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)} <break time="200ms"/> ${opt}`).join('. <break time="600ms"/> ');
     
+    let intro = "";
     if (question.roundType === 'BUZZER') {
-      return `Buzzer Round for ${question.points} credits! Hands on buttons. Here is the question: ${question.text}. ${opts}.`;
+        intro = `Buzzer Round for ${question.points} credits. Hands on buttons. <break time="500ms"/> Here is the question.`;
     } else {
-      const intro = activeTeamName 
-        ? `Standard Round. Question for ${activeTeamName}.` 
-        : "Standard Round.";
-      return `${intro} ${question.text}. ${opts}.`;
+        intro = activeTeamName 
+            ? `Standard Round. Question for ${activeTeamName}.` 
+            : "Standard Round.";
     }
+
+    // Wrap in <speak> tag for SSML processing
+    return `<speak>${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> ${opts}</speak>`;
   }
 };
