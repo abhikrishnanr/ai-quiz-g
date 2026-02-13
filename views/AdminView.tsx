@@ -71,23 +71,48 @@ const AdminView: React.FC = () => {
     status: QuizStatus, 
     label: string, 
     icon: any, 
-    variant: any, 
+    variant: 'primary' | 'success' | 'danger', 
     desc: string,
     disabled?: boolean
   }) => {
     const isActive = session.status === status;
+
+    // Static mappings for styles to ensure Tailwind purge works correctly
+    const styles = {
+      primary: {
+        active: 'bg-indigo-50 border-indigo-500 shadow-md transform scale-[1.02]',
+        iconActive: 'text-indigo-600',
+        ping: 'bg-indigo-400',
+        dot: 'bg-indigo-500'
+      },
+      success: {
+        active: 'bg-emerald-50 border-emerald-500 shadow-md transform scale-[1.02]',
+        iconActive: 'text-emerald-600',
+        ping: 'bg-emerald-400',
+        dot: 'bg-emerald-500'
+      },
+      danger: {
+        active: 'bg-red-50 border-red-500 shadow-md transform scale-[1.02]',
+        iconActive: 'text-red-600',
+        ping: 'bg-red-400',
+        dot: 'bg-red-500'
+      }
+    };
+
+    const variantStyle = styles[variant];
+
     return (
       <button
         onClick={() => performAction(() => API.updateSessionStatus(status))}
         disabled={disabled || updating}
         className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 h-28 group ${
           isActive 
-            ? `bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-50 border-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-500 shadow-md transform scale-[1.02]` 
+            ? variantStyle.active
             : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50 opacity-100 disabled:opacity-50 disabled:cursor-not-allowed'
         }`}
       >
         <div className={`p-2 rounded-full mb-2 ${isActive ? 'bg-white shadow-sm' : 'bg-slate-100'}`}>
-           <Icon className={`w-5 h-5 ${isActive ? `text-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-600` : 'text-slate-500'}`} />
+           <Icon className={`w-5 h-5 ${isActive ? variantStyle.iconActive : 'text-slate-500'}`} />
         </div>
         <span className={`font-black uppercase text-sm ${isActive ? 'text-slate-900' : 'text-slate-600'}`}>{label}</span>
         <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 mt-1">{desc}</span>
@@ -95,8 +120,8 @@ const AdminView: React.FC = () => {
         {isActive && (
           <div className="absolute top-2 right-2">
             <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-400`}></span>
-              <span className={`relative inline-flex rounded-full h-2 w-2 bg-${variant === 'danger' ? 'red' : variant === 'success' ? 'emerald' : 'indigo'}-500`}></span>
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${variantStyle.ping}`}></span>
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${variantStyle.dot}`}></span>
             </span>
           </div>
         )}
@@ -352,3 +377,4 @@ const AdminView: React.FC = () => {
 };
 
 export default AdminView;
+    
