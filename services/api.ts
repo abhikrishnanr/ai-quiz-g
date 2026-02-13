@@ -1,5 +1,4 @@
 
-import { GoogleGenAI } from "@google/genai";
 import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
 import { QuizService } from './mockBackend';
@@ -145,37 +144,48 @@ export const API = {
     return QuizService.completeReading();
   },
 
-  // LLM Text Generation
+  // Smart Template System (Logic-based instead of GenAI)
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
-    // Check if API_KEY is present to prevent crashes if environment isn't set up
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        console.warn("API_KEY not found in environment.");
-        return "Bodhini system ready.";
+    // Simulate thinking delay slightly
+    await new Promise(r => setTimeout(r, 100));
+
+    // 1. Result/Reveal Phase
+    if (status === QuizStatus.REVEALED && context) {
+        if (context.includes("Correct")) {
+            const winners = [
+                "Excellent work. That is correct.",
+                "Well done. That is accurate.",
+                "Spot on. Points awarded.",
+                "Precisely correct.",
+                "That is the right answer."
+            ];
+            return winners[Math.floor(Math.random() * winners.length)];
+        } else if (context.includes("Incorrect")) {
+            const losers = [
+                "I am afraid that is incorrect.",
+                "Not quite right.",
+                "That is a miss.",
+                "Incorrect response.",
+                "That is not the answer we were looking for."
+            ];
+            return losers[Math.floor(Math.random() * losers.length)];
+        } else if (context.includes("No answer")) {
+             return "Time has run out. Here is the answer.";
+        }
     }
 
-    try {
-      const genAI = new GoogleGenAI({ apiKey });
-      const model = 'gemini-3-flash-preview';
-      
-      const prompt = `
-        You are 'Bodhini', an AI quiz host with a sweet, warm, and melodic voice, speaking in polite Indian English.
-        Current Status: ${status}
-        ${questionText ? `Question: "${questionText}"` : ''}
-        ${context ? `Context: ${context}` : ''}
-        Rules: Keep it under 15 words. Enthusiastic but professional. No quotes.
-      `;
-
-      const response = await genAI.models.generateContent({
-        model: model,
-        contents: prompt
-      });
-
-      return response.text || "Proceeding.";
-    } catch (error) {
-      console.error("Gemini Insight Error:", error);
-      return "Processing.";
+    // 2. Reading Phase
+    if (status === QuizStatus.LIVE && questionText) {
+        return "Focus on the question.";
     }
+
+    // 3. Locked Phase
+    if (status === QuizStatus.LOCKED) {
+        return "Response received. Stand by.";
+    }
+
+    // Default
+    return "System ready.";
   },
 
   // AWS Polly TTS Wrapper
