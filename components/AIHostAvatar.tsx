@@ -149,7 +149,7 @@ export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking, commenta
       
       {isLarge && (
         <div className="mt-8 text-center animate-in fade-in slide-in-from-bottom duration-1000">
-           <h2 className="text-3xl font-black italic tracking-tighter text-white">AURA <span className="text-indigo-400">HOST</span></h2>
+           <h2 className="text-3xl font-black italic tracking-tighter text-white">BODHINI <span className="text-indigo-400">HOST</span></h2>
            <div className="flex items-center justify-center gap-2 mt-2">
              <div className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
              <span className="text-[10px] uppercase tracking-[0.3em] text-slate-400">{isSpeaking ? 'Voice Active' : 'System Listening'}</span>

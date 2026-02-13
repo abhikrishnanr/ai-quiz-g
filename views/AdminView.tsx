@@ -49,7 +49,7 @@ const AdminView: React.FC = () => {
     }
   };
 
-  const triggerAuraCommentary = async () => {
+  const triggerBodhiniCommentary = async () => {
     setUpdating(true);
     try {
       await refresh();
@@ -211,7 +211,7 @@ const AdminView: React.FC = () => {
             </Card>
 
             <button 
-               onClick={triggerAuraCommentary}
+               onClick={triggerBodhiniCommentary}
                className="w-full bg-gradient-to-br from-indigo-900 to-slate-900 text-white p-6 rounded-3xl shadow-xl border border-white/10 group relative overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
@@ -221,7 +221,7 @@ const AdminView: React.FC = () => {
                  <div className="p-2 bg-white/10 rounded-lg">
                    <MessageSquare className="w-4 h-4 text-indigo-300" />
                  </div>
-                 <span className="text-xs font-black uppercase tracking-widest text-indigo-200">Aura AI</span>
+                 <span className="text-xs font-black uppercase tracking-widest text-indigo-200">Bodhini AI</span>
                </div>
                <p className="text-left text-sm font-bold leading-tight relative z-10">Trigger Contextual Commentary</p>
             </button>
@@ -377,4 +377,3 @@ const AdminView: React.FC = () => {
 };
 
 export default AdminView;
-    

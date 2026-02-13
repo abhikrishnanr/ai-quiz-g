@@ -13,7 +13,7 @@ const TeamView: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(localStorage.getItem('duk_team_id'));
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [auraInsight, setAuraInsight] = useState<string>("");
+  const [bodhiniInsight, setBodhiniInsight] = useState<string>("");
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
   const mySubmission = session?.submissions.find(s => s.teamId === selectedTeam);
@@ -22,11 +22,11 @@ const TeamView: React.FC = () => {
 
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE || session?.status === QuizStatus.PREVIEW) {
-      const updateAura = async () => {
+      const updateBodhini = async () => {
         const insight = await API.getAIHostInsight(session.status, currentQuestion?.text);
-        setAuraInsight(insight);
+        setBodhiniInsight(insight);
       };
-      updateAura();
+      updateBodhini();
     }
     if (session?.status === QuizStatus.PREVIEW) {
       setSelectedAnswer(null);
@@ -96,7 +96,7 @@ const TeamView: React.FC = () => {
           </div>
           <div>
             <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Standby for Uplink</h2>
-            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Aura is calibrating...</p>
+            <p className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-2">Bodhini is calibrating...</p>
           </div>
         </div>
       );
@@ -303,9 +303,9 @@ const TeamView: React.FC = () => {
               <MessageSquare className="w-5 h-5 text-indigo-400" />
            </div>
            <div className="flex-grow">
-              <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-0.5">Aura Uplink</p>
+              <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-0.5">Bodhini Uplink</p>
               <p className="text-xs font-medium text-slate-700 leading-snug italic line-clamp-2">
-                "{auraInsight || "Monitoring session parameters..."}"
+                "{bodhiniInsight || "Monitoring session parameters..."}"
               </p>
            </div>
         </div>
