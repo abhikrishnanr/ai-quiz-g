@@ -51,9 +51,10 @@ export const API = {
 
         Rules:
         1. If status is REVEALED:
-           - Announce the result ("Correct!" or "Oh no, that is incorrect") with emotion.
-           - Add a very brief, encouraging comment (max 8 words).
-        2. Keep it concise and natural.
+           - START IMMEDIATELY with "That is Correct!" or "Incorrect!" or "Correct answer!" with enthusiasm.
+           - Then give a very brief 1-sentence explanation or encouragement.
+           - Keep it under 15 words total.
+        2. Keep it concise.
         3. No quotes.
       `;
 

@@ -74,9 +74,17 @@ const DisplayView: React.FC = () => {
   };
 
   const preloadGeneralClips = async () => {
-    if (!audioCacheRef.current['warning_10s']) {
-        const audio = await API.getTTSAudio(HOST_SCRIPTS.WARNING_10S);
-        if (audio) audioCacheRef.current['warning_10s'] = audio;
+    const clips = [
+        { key: 'warning_10s', text: HOST_SCRIPTS.WARNING_10S },
+        { key: 'generic_correct', text: HOST_SCRIPTS.GENERIC_CORRECT },
+        { key: 'generic_wrong', text: HOST_SCRIPTS.GENERIC_WRONG },
+    ];
+
+    for (const clip of clips) {
+        if (!audioCacheRef.current[clip.key]) {
+            const audio = await API.getTTSAudio(clip.text);
+            if (audio) audioCacheRef.current[clip.key] = audio;
+        }
     }
   };
 
@@ -87,14 +95,13 @@ const DisplayView: React.FC = () => {
     if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
         
         // Clear old round specific cache but keep generals
-        const generalKeys = ['warning_10s'];
+        const generalKeys = ['warning_10s', 'generic_correct', 'generic_wrong'];
         Object.keys(audioCacheRef.current).forEach(key => {
             if (!generalKeys.includes(key)) delete audioCacheRef.current[key];
         });
 
         // A. Cache Question Reading
         const prepareQuestionAudio = async () => {
-            // Determine active team name for standard round prompt
             const startingTeam = session.teams.find(t => t.id === session.activeTeamId); 
             const textToRead = API.formatQuestionForSpeech(currentQuestion, startingTeam?.name);
             const audio = await API.getTTSAudio(textToRead);
@@ -139,6 +146,9 @@ const DisplayView: React.FC = () => {
 
         if (audioCacheRef.current[cacheKey]) return;
 
+        // Ensure we don't start generating if we are already revealed and it's too late (handled by playback logic)
+        // But pre-fetching is good if possible.
+        
         let context = "";
         let text = "";
         if (lastSub) {
@@ -238,7 +248,6 @@ const DisplayView: React.FC = () => {
            SFX.playLock();
            const played = playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
            if (!played) {
-               // Fallback: Just text bubble
                setCommentary(`Locked by ${team.name}`);
                setTimeout(() => setCommentary(""), 2000);
            }
@@ -246,7 +255,6 @@ const DisplayView: React.FC = () => {
     }
 
     // C. Team Pass (Standard Round) -> Pass Announcement
-    // Detect change in activeTeamId while in LIVE mode (and not just starting)
     if (
         session.status === QuizStatus.LIVE && 
         session.activeTeamId !== lastActiveTeamIdRef.current && 
@@ -257,7 +265,7 @@ const DisplayView: React.FC = () => {
         }
     }
 
-    // D. REVEALED -> Result Commentary
+    // D. REVEALED -> Result Commentary (Robust Fallback)
     if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
        const lastSub = session.submissions[session.submissions.length - 1];
        const isCorrect = lastSub ? !!lastSub.isCorrect : false;
@@ -269,8 +277,32 @@ const DisplayView: React.FC = () => {
             ? `result_${lastSub.teamId}_${lastSub.timestamp}` 
             : `result_nosub_${currentQuestion?.id}`;
        
-       const text = audioCacheRef.current[cacheKey + '_text'] || "Here is the result.";
-       playFromCache(cacheKey, text);
+       const specificText = audioCacheRef.current[cacheKey + '_text'];
+       
+       // 1. Try to play the specifically pre-generated commentary
+       if (audioCacheRef.current[cacheKey]) {
+            playFromCache(cacheKey, specificText);
+       } else {
+           // 2. Fallback: Cache Miss (Too fast?) -> Play Generic immediately, then generate explanation
+           const genericKey = isCorrect ? 'generic_correct' : 'generic_wrong';
+           const genericText = isCorrect ? HOST_SCRIPTS.GENERIC_CORRECT : HOST_SCRIPTS.GENERIC_WRONG;
+           
+           // Play generic clip immediately (Zero Latency)
+           playFromCache(genericKey, genericText, async () => {
+                // After generic clip ends, generate the specific explanation
+                let context = "No answer.";
+                if (lastSub) {
+                    const team = session.teams.find(t => t.id === lastSub.teamId);
+                    context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
+                }
+                const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
+                const audio = await API.getTTSAudio(insight);
+                if (audio) {
+                    // Slight pause before explanation feels natural
+                    setTimeout(() => playAudio(audio, insight), 300);
+                }
+           });
+       }
     }
 
     // Update Refs
