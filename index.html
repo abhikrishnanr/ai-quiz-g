@@ -10,7 +10,8 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
+            background-color: #020617;
+            color: #f8fafc;
             overflow-x: hidden;
         }
         .font-display {
@@ -26,16 +27,6 @@
             animation: reveal-question 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
-        @keyframes shimmer {
-            0% { background-position: -200% 0; }
-            100% { background-position: 200% 0; }
-        }
-        .animate-shimmer {
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-            background-size: 200% 100%;
-            animation: shimmer 2s infinite;
-        }
-
         @keyframes glow-pulse {
             0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
             50% { box-shadow: 0 0 50px rgba(99, 102, 241, 0.5); }
@@ -44,46 +35,43 @@
             animation: glow-pulse 3s ease-in-out infinite;
         }
 
-        @keyframes count-up {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+        /* Custom Scrollbar */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
         }
-        .animate-count {
-            animation: count-up 0.5s ease-out forwards;
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.02);
         }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
         }
-        .animate-float {
-            animation: float 4s ease-in-out infinite;
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.2);
         }
 
         /* Polyfill for tailwindcss-animate utilities */
         .animate-in { animation-duration: 0.5s; animation-timing-function: ease-out; animation-fill-mode: both; }
         .fade-in { animation-name: fadeIn; }
         .slide-in-from-bottom { animation-name: slideInBottom; }
+        .slide-in-from-bottom-6 { animation-name: slideInBottom6; }
         .slide-in-from-bottom-4 { animation-name: slideInBottom4; }
-        .slide-in-from-left { animation-name: slideInLeft; }
+        .slide-in-from-right { animation-name: slideInRight; }
         .zoom-in { animation-name: zoomIn; }
-        .animate-spin-slow { animation: spin 8s linear infinite; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInBottom { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInBottom6 { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes slideInBottom4 { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideInLeft { from { transform: translateX(-20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes slideInRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     </style>
 <script>
-    // Polyfill process for browser environment to satisfy SDK checks
     window.process = { 
         env: { NODE_ENV: 'production' },
         browser: true,
         version: ''
     };
-    // Polyfill global for legacy libs
     window.global = window;
 </script>
 <script type="importmap">
