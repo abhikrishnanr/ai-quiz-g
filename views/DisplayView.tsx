@@ -19,10 +19,7 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-// FIX: Use native browser decoding for MP3 data instead of raw PCM parsing
 async function decodeAudioData(data: Uint8Array, ctx: AudioContext): Promise<AudioBuffer> {
-  // We need to pass an ArrayBuffer to decodeAudioData.
-  // We slice it to ensure we have a clean buffer copy required by the API.
   const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
   return await ctx.decodeAudioData(arrayBuffer);
 }
@@ -35,7 +32,6 @@ const DisplayView: React.FC = () => {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [timerStartAt, setTimerStartAt] = useState<number | null>(null);
   
-  // Refs
   const lastQuestionIdRef = useRef<string | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
   const lastStatusRef = useRef<QuizStatus | null>(null);
@@ -43,11 +39,8 @@ const DisplayView: React.FC = () => {
   const hasPlayedWarningRef = useRef<boolean>(false);
   const teamsAudioCachedRef = useRef<Set<string>>(new Set());
   
-  // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  
-  // Local Memory Cache (syncs with Persistent cache in API)
   const audioCacheRef = useRef<Record<string, string>>({});
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
@@ -55,7 +48,6 @@ const DisplayView: React.FC = () => {
 
   const initAudio = () => {
     if (!audioContextRef.current) {
-      // Remove fixed sampleRate to allow native hardware rate (better for MP3 decoding)
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     if (audioContextRef.current.state === 'suspended') {
@@ -74,15 +66,11 @@ const DisplayView: React.FC = () => {
         { key: 'generic_wrong', text: HOST_SCRIPTS.GENERIC_WRONG },
     ];
     for (const clip of clips) {
-        // API.getTTSAudio handles the queue and persistence now
         const audio = await API.getTTSAudio(clip.text);
         if (audio) audioCacheRef.current[clip.key] = audio;
     }
   };
 
-  // --- Pre-Fetching --- //
-
-  // 1. Teams
   useEffect(() => {
      if (!session?.teams) return;
      session.teams.forEach(async (team) => {
@@ -96,12 +84,9 @@ const DisplayView: React.FC = () => {
      });
   }, [session?.teams]);
 
-  // 2. Question Audio (Unique per ID)
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW && currentQuestion) {
         const uniqueKey = `read_${currentQuestion.id}`;
-        
-        // Only fetch if we haven't already
         if (!audioCacheRef.current[uniqueKey]) {
             const prepareQuestionAudio = async () => {
                 const startingTeam = session.teams.find(t => t.id === session.activeTeamId); 
@@ -114,7 +99,6 @@ const DisplayView: React.FC = () => {
     }
   }, [session?.status, session?.currentQuestionId, currentQuestion, session?.teams]);
 
-  // 3. Result Audio
   useEffect(() => {
     if (!session || !currentQuestion) return;
     const prepareResultAudio = async () => {
@@ -147,8 +131,6 @@ const DisplayView: React.FC = () => {
     }
   }, [session?.submissions, session?.status, currentQuestion]);
 
-  // --- Playback --- //
-
   const playAudio = async (base64Data: string, text?: string, onEnd?: () => void) => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
@@ -156,7 +138,6 @@ const DisplayView: React.FC = () => {
       try { activeSourceRef.current.stop(); } catch(e) {}
     }
     
-    // Clean SSML tags from text before displaying
     if (text) {
         const cleanText = text.replace(/<[^>]*>/g, '').trim();
         setCommentary(cleanText);
@@ -191,22 +172,16 @@ const DisplayView: React.FC = () => {
      return false;
   };
 
-  // --- Event Handling --- //
-
   useEffect(() => {
     if (!session) return;
 
-    // PREVIEW -> LIVE (Read Question)
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        hasPlayedWarningRef.current = false;
-       
        const uniqueKey = `read_${currentQuestion?.id}`;
-       
        if (!playFromCache(uniqueKey, undefined, () => {
            if (session.isReading) API.completeReading();
        })) {
-           // Fallback
            const text = API.formatQuestionForSpeech(currentQuestion!, activeTeam?.name);
            API.getTTSAudio(text).then(audio => {
                if (audio) playAudio(audio, undefined, () => API.completeReading());
@@ -215,7 +190,6 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // Submission Locked
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
@@ -223,19 +197,16 @@ const DisplayView: React.FC = () => {
            SFX.playLock();
            const played = playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
            if (!played) {
-               const cleanText = `Locked by ${team.name}`;
-               setCommentary(cleanText);
+               setCommentary(`Locked by ${team.name}`);
                setTimeout(() => setCommentary(""), 2000);
            }
        }
     }
 
-    // Passing
     if (session.status === QuizStatus.LIVE && session.activeTeamId !== lastActiveTeamIdRef.current && lastActiveTeamIdRef.current !== null) {
         if (activeTeam) playFromCache(`pass_${activeTeam.id}`, `Passing to ${activeTeam.name}`);
     }
 
-    // Result Revealed
     if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
        const lastSub = session.submissions[session.submissions.length - 1];
        const isCorrect = lastSub ? !!lastSub.isCorrect : false;
@@ -252,7 +223,6 @@ const DisplayView: React.FC = () => {
        } else {
            const genericKey = isCorrect ? 'generic_correct' : 'generic_wrong';
            const genericText = isCorrect ? HOST_SCRIPTS.GENERIC_CORRECT : HOST_SCRIPTS.GENERIC_WRONG;
-           
            playFromCache(genericKey, genericText, async () => {
                 let context = "No answer.";
                 if (lastSub) {
@@ -273,11 +243,8 @@ const DisplayView: React.FC = () => {
         lastQuestionIdRef.current = session.currentQuestionId;
         hasPlayedWarningRef.current = false;
     }
-
   }, [session?.status, session?.submissions.length, session?.activeTeamId, session?.id]);
 
-
-  // --- Timer --- //
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
       if (session.isReading) {
@@ -285,7 +252,6 @@ const DisplayView: React.FC = () => {
           return;
       }
       if (!timerStartAt) setTimerStartAt(session.turnStartTime || Date.now());
-      
       const interval = setInterval(() => {
         const startTime = session.turnStartTime || timerStartAt || Date.now();
         const elapsed = Math.floor((Date.now() - startTime) / 1000);

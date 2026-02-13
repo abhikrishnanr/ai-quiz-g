@@ -1,6 +1,5 @@
 
 import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
-import { GoogleGenAI } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
 import { QuizService } from './mockBackend';
 
@@ -20,8 +19,6 @@ const pollyClient = new PollyClient({
     secretAccessKey: AWS_CONFIG.SECRET_KEY
   }
 });
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 type QueueItem = {
   text: string;
@@ -111,33 +108,47 @@ export const API = {
   completeReading: async (): Promise<QuizSession> => QuizService.completeReading(),
 
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
-    try {
-      const prompt = `
-        You are "Bodhini", an intelligent, talkative, and witty AI Quiz Master at Digital University Kerala.
-        Current Quiz Phase: ${status}
-        Question: ${questionText || "None"}
-        Context: ${context || "Awaiting results"}
+    // Logic-based template system to simulate "talkative" LLM behavior
+    const random = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
-        Your Goal: 
-        1. If someone is correct, start with an enthusiastic shout like "YES!" or "SPOT ON!" (use SSML <prosody volume="x-loud" pitch="+10%">...).
-        2. Be VERY talkative. Share a brief, fun, or intelligent fact related to the question topic.
-        3. If incorrect, be empathetic but professional.
-        4. Keep responses between 2-4 sentences.
-        5. Use SSML format. Wrap in <speak> tags.
-      `;
+    if (status === QuizStatus.REVEALED && context) {
+      if (context.includes("Correct")) {
+        const shouts = ["YES!", "ABSOLUTELY RIGHT!", "SPOT ON!", "BOOM! CORRECT!", "PERFECT EXECUTION!"];
+        const compliments = [
+          "Your neural pathways are firing with incredible precision.",
+          "That was an exceptional display of cognitive speed.",
+          "Truly a masterclass in AI knowledge.",
+          "I am impressed by your systematic approach to this challenge.",
+          "A stellar performance from a high-functioning cluster."
+        ];
+        const facts = [
+          "Did you know that the term AI was actually coined back in 1956?",
+          "It's fascinating how far we've come since the early days of symbolic logic.",
+          "A correct answer here brings you closer to digital transcendence.",
+          "Knowledge is the fuel that powers our neural architectures."
+        ];
+        
+        const shout = random(shouts);
+        const compliment = random(compliments);
+        const fact = random(facts);
 
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt
-      });
-
-      let text = response.text || "Ready for the next sequence.";
-      if (!text.startsWith('<speak>')) text = `<speak>${text}</speak>`;
-      return text;
-    } catch (e) {
-      console.error("Gemini failed", e);
-      return "<speak>Processing continues. Stay sharp.</speak>";
+        return `<speak>
+          <prosody volume="x-loud" pitch="+15%">${shout}</prosody> 
+          <break time="500ms"/>
+          ${compliment} <break time="300ms"/> ${fact}
+        </speak>`;
+      } else {
+        const sympathy = ["I am afraid that is incorrect.", "Neural mismatch detected.", "Not quite the answer we needed.", "A temporary logic failure.", "Incorrect sequence."];
+        const followUp = ["Stay focused, the next transmission could be yours.", "Calibration is key in competitive intelligence.", "Even the best models require fine-tuning."];
+        return `<speak>${random(sympathy)} <break time="400ms"/> ${random(followUp)}</speak>`;
+      }
     }
+
+    if (status === QuizStatus.PREVIEW) {
+      return `<speak>Prepare yourselves. A new challenge is materializing in the digital workspace. Stay sharp.</speak>`;
+    }
+
+    return "<speak>Monitoring session telemetry. Systems active.</speak>";
   },
 
   getTTSAudio: async (text: string): Promise<string | undefined> => {
@@ -152,8 +163,15 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. <break time="400ms"/> ');
-    const intro = activeTeamName ? `Team ${activeTeamName}, this ${question.difficulty} question is for you.` : `Buzzer Round. ${question.difficulty} level.`;
-    return `<speak>${intro} <break time="500ms"/> ${question.text} <break time="1000ms"/> ${opts}</speak>`;
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. <break time="200ms"/> ${opt}`).join('. <break time="500ms"/> ');
+    let intro = "";
+    if (question.roundType === 'BUZZER') {
+      intro = `Attention. This is a Buzzer Round. Difficulty level: ${question.difficulty}. Points on the line: ${question.points}. Hands on buttons.`;
+    } else {
+      intro = activeTeamName 
+        ? `Team ${activeTeamName}, this ${question.difficulty} question is your responsibility. Value: ${question.points} credits.` 
+        : `Standard Round. ${question.difficulty} level.`;
+    }
+    return `<speak>${intro} <break time="800ms"/> ${question.text} <break time="1200ms"/> ${opts}</speak>`;
   }
 };

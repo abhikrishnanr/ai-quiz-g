@@ -73,7 +73,6 @@ const TeamView: React.FC = () => {
         <div className="space-y-6 pb-24">
            <div className={`p-4 rounded-2xl text-white flex justify-between items-center ${isBuzzer ? 'bg-amber-600' : 'bg-indigo-600'}`}>
               <span className="font-black uppercase tracking-widest">{isBuzzer ? 'Fastest Finger' : isMyTurn ? 'YOUR TURN' : 'LISTENING'}</span>
-              <span className="bg-white/20 px-3 py-1 rounded-lg text-xs font-black">{currentQuestion?.difficulty}</span>
            </div>
 
            <Card className="bg-white">

@@ -12,115 +12,115 @@ export const COLORS = {
 };
 
 export const HOST_SCRIPTS = {
-  WARNING_10S: "Ten seconds remaining.",
-  TIME_UP: "Time is up.",
-  GENERIC_CORRECT: "Correct!",
-  GENERIC_WRONG: "Incorrect.",
+  WARNING_10S: "Only ten seconds remain on the clock. Neural processing speed is reaching its limit!",
+  TIME_UP: "Time is up. Synaptic connection severed.",
+  GENERIC_CORRECT: "That is correct!",
+  GENERIC_WRONG: "I am afraid that is incorrect.",
 };
 
 export const MOCK_QUESTIONS: Question[] = [
   {
     id: 'ai_1',
-    text: 'What does the "A" in AI stand for?',
+    text: 'What does the "A" in AI stand for when discussing computer intelligence?',
     options: ['Artificial', 'Automated', 'Advanced', 'Analytical'],
     correctAnswer: 0,
     points: 50,
     timeLimit: 30,
     roundType: 'STANDARD',
     difficulty: 'EASY',
-    hint: 'Opposite of natural intelligence.'
+    hint: 'It is the opposite of natural or biological.'
   },
   {
     id: 'ai_2',
-    text: 'Who developed the "Test" to determine if a machine can think like a human?',
-    options: ['Isaac Newton', 'Alan Turing', 'Ada Lovelace', 'Bill Gates'],
+    text: 'Which mathematician developed a "Test" to see if a machine could mimic human conversation?',
+    options: ['Isaac Newton', 'Alan Turing', 'Ada Lovelace', 'Charles Babbage'],
     correctAnswer: 1,
     points: 100,
     timeLimit: 30,
     roundType: 'STANDARD',
     difficulty: 'EASY',
-    hint: 'An Enigma codebreaker during WWII.'
+    hint: 'He is famously known for breaking the Enigma code.'
   },
   {
     id: 'ai_3',
-    text: 'What is the core technology behind ChatGPT?',
-    options: ['SQL Databases', 'LLM (Large Language Model)', 'Blockchain', 'Hardcoded rules'],
+    text: 'What is the primary goal of a "Neural Network" in modern AI?',
+    options: ['To store large files', 'To mimic the human brain to find patterns', 'To speed up internet hardware', 'To encrypt blockchain data'],
     correctAnswer: 1,
     points: 150,
     timeLimit: 30,
     roundType: 'BUZZER',
     difficulty: 'MEDIUM',
-    hint: 'It is a model trained on massive amounts of text.'
+    hint: 'Think about how biological neurons connect and learn.'
   },
   {
     id: 'ai_4',
-    text: 'Which term describes an AI finding patterns similarly to the human brain?',
-    options: ['Cloud Computing', 'Neural Network', 'Binary Logic', 'Data Mining'],
-    correctAnswer: 1,
+    text: 'In the context of ChatGPT, what does the "P" in GPT stand for?',
+    options: ['Programmed', 'Prototyped', 'Pre-trained', 'Processed'],
+    correctAnswer: 2,
     points: 150,
     timeLimit: 30,
     roundType: 'STANDARD',
     difficulty: 'MEDIUM',
-    hint: 'Biological inspiration from neurons.'
+    hint: 'It describes how the model was taught before you interacted with it.'
   },
   {
     id: 'ai_5',
-    text: 'What is it called when an AI makes up false facts confidently?',
-    options: ['Bugging', 'Glitching', 'Hallucination', 'Dreaming'],
-    correctAnswer: 2,
+    text: 'Which IBM computer famously defeated world chess champion Garry Kasparov in 1997?',
+    options: ['Watson', 'Deep Blue', 'AlphaGo', 'Siri'],
+    correctAnswer: 1,
     points: 200,
     timeLimit: 30,
     roundType: 'BUZZER',
     difficulty: 'MEDIUM',
-    hint: 'Like a human seeing things that aren\'t there.'
+    hint: 'It shares its name with a deep shade of a primary color.'
   },
   {
     id: 'ai_6',
-    text: 'Who famously said "The Three Laws of Robotics"?',
-    options: ['Elon Musk', 'Isaac Asimov', 'Philip K. Dick', 'Steve Jobs'],
-    correctAnswer: 1,
+    text: 'What term describes an AI model confidently presenting false information as fact?',
+    options: ['Debugging', 'Glitching', 'Hallucination', 'Phantom Data'],
+    correctAnswer: 2,
+    points: 200,
+    timeLimit: 30,
+    roundType: 'STANDARD',
+    difficulty: 'MEDIUM',
+    hint: 'It is the same word used in psychology for seeing things that aren\'t there.'
+  },
+  {
+    id: 'ai_7',
+    text: 'Who coined the "Three Laws of Robotics" in his influential science fiction stories?',
+    options: ['Isaac Asimov', 'Arthur C. Clarke', 'Philip K. Dick', 'Elon Musk'],
+    correctAnswer: 0,
     points: 150,
     timeLimit: 30,
     roundType: 'STANDARD',
     difficulty: 'MEDIUM',
-    hint: 'A legendary sci-fi author of the 20th century.'
+    hint: 'He wrote "I, Robot" and was a master of hard science fiction.'
   },
   {
-    id: 'ai_7',
-    text: 'In ML, what is the term for a model that performs well on training data but poorly on new data?',
-    options: ['Underfitting', 'Overfitting', 'Cross-fitting', 'Mismatching'],
+    id: 'ai_8',
+    text: 'In Machine Learning, what is "Overfitting"?',
+    options: ['Data is too large for storage', 'A model memorizes noise rather than learning patterns', 'Hardware overheating', 'Too many layers in a network'],
     correctAnswer: 1,
     points: 300,
     timeLimit: 30,
     roundType: 'BUZZER',
     difficulty: 'HARD',
-    hint: 'The model has memorized the noise instead of the pattern.'
+    hint: 'The model performs perfectly on training data but fails on new data.'
   },
   {
-    id: 'ai_8',
-    text: 'Which architecture introduced in 2017 is the "T" in GPT?',
-    options: ['Transfer', 'Transformer', 'Transition', 'Translator'],
-    correctAnswer: 1,
+    id: 'ai_9',
+    text: 'Which 2017 research paper introduced the Transformer architecture used by most modern LLMs?',
+    options: ['Attention Is All You Need', 'Computing Machinery and Intelligence', 'The Deep Learning Revolution', 'Neural Turing Machines'],
+    correctAnswer: 0,
     points: 400,
     timeLimit: 30,
     roundType: 'STANDARD',
     difficulty: 'HARD',
-    hint: 'From the paper "Attention is All You Need".'
-  },
-  {
-    id: 'ai_9',
-    text: 'What does "RLHF" stand for in model training?',
-    options: ['Random Logic High Frequency', 'Reinforcement Learning from Human Feedback', 'Real Language Hub Filter', 'Recurrent Logic Hub Frame'],
-    correctAnswer: 1,
-    points: 350,
-    timeLimit: 30,
-    roundType: 'STANDARD',
-    difficulty: 'HARD',
-    hint: 'Uses humans to rank model outputs.'
+    hint: 'The title suggests that a specific mechanism is the only requirement.'
   },
   {
     id: 'ai_10',
-    text: 'What name is given to AI that can perform any intellectual task a human can?',
+    text: 'What is the theoretical stage of AI where a machine can perform any intellectual task a human can?',
     options: ['ANI', 'ASI', 'AGI', 'ALI'],
     correctAnswer: 2,
     points: 500,
