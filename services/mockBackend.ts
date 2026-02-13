@@ -1,12 +1,11 @@
 
-import { QuizSession, QuizStatus, Team, Submission, Question } from '../types';
-import { MOCK_QUESTIONS } from '../constants';
+import { QuizSession, QuizStatus, Team, Submission, Question, RoundType } from '../types';
 
-const STORAGE_KEY = 'DUK_QUIZ_SESSION_V1';
+const STORAGE_KEY = 'DUK_QUIZ_SESSION_V2';
 
 const DEFAULT_SESSION: QuizSession = {
   id: 'session-123',
-  currentQuestionId: null,
+  currentQuestion: null,
   status: QuizStatus.PREVIEW,
   teams: [
     { id: 't1', name: 'Team A', score: 0 },
@@ -17,10 +16,9 @@ const DEFAULT_SESSION: QuizSession = {
   passedTeamIds: [],
   requestedHint: false,
   hintVisible: false,
-  scoringMode: 'FIRST_RESPONSE',
+  nextRoundType: 'STANDARD',
   activeTeamId: null,
   turnStartTime: 0,
-  passCount: 0,
   isReading: false
 };
 
@@ -45,33 +43,23 @@ const saveSession = (session: QuizSession) => {
 const passTurnInternal = (session: QuizSession) => {
   if (!session.activeTeamId) return;
   
-  // Track that this team has passed
   if (!session.passedTeamIds.includes(session.activeTeamId)) {
     session.passedTeamIds.push(session.activeTeamId);
   }
 
-  // Small reward for passing (strategic play)
-  const passingTeam = session.teams.find(t => t.id === session.activeTeamId);
-  if (passingTeam) passingTeam.score += 5;
-
-  // Find next team that hasn't passed yet
   const availableTeams = session.teams.filter(t => !session.passedTeamIds.includes(t.id));
 
   if (availableTeams.length > 0) {
-    // Pick the next logical team (sequential)
     const currentIndex = session.teams.findIndex(t => t.id === session.activeTeamId);
     let nextIndex = (currentIndex + 1) % session.teams.length;
     
-    // Find next available in the list
     while (session.passedTeamIds.includes(session.teams[nextIndex].id)) {
       nextIndex = (nextIndex + 1) % session.teams.length;
     }
     
     session.activeTeamId = session.teams[nextIndex].id;
     session.turnStartTime = Date.now();
-    session.passCount++;
   } else {
-    // No one left to pass to
     session.status = QuizStatus.LOCKED;
     session.activeTeamId = null;
   }
@@ -80,10 +68,9 @@ const passTurnInternal = (session: QuizSession) => {
 export const QuizService = {
   getSession: async (): Promise<QuizSession> => {
     let session = loadSession();
-    const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
-    if (session.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && session.turnStartTime > 0) {
+    if (session.status === QuizStatus.LIVE && session.currentQuestion?.roundType === 'STANDARD' && session.turnStartTime > 0) {
       const elapsed = (Date.now() - session.turnStartTime) / 1000;
-      if (elapsed >= 60) { // Auto pass after 60s
+      if (elapsed >= 30) { 
         passTurnInternal(session);
         saveSession(session);
       }
@@ -105,29 +92,32 @@ export const QuizService = {
     return session;
   },
 
-  setQuestion: async (questionId: string): Promise<QuizSession> => {
+  injectDynamicQuestion: async (question: Question): Promise<QuizSession> => {
     let session = loadSession();
-    const question = MOCK_QUESTIONS.find(q => q.id === questionId);
-    session.currentQuestionId = questionId;
+    session.currentQuestion = question;
     session.status = QuizStatus.PREVIEW;
     session.submissions = [];
     session.passedTeamIds = [];
     session.requestedHint = false;
     session.hintVisible = false;
-    session.passCount = 0;
     session.isReading = false;
     
-    if (question) {
-      session.scoringMode = question.roundType === 'BUZZER' ? 'FIRST_RESPONSE' : 'STANDARD';
-      session.activeTeamId = question.roundType === 'STANDARD' ? session.teams[0].id : null;
+    // Toggle next round type for next time
+    session.nextRoundType = question.roundType === 'STANDARD' ? 'BUZZER' : 'STANDARD';
+
+    if (question.roundType === 'STANDARD') {
+      session.activeTeamId = session.teams[0].id;
+    } else {
+      session.activeTeamId = null;
     }
+    
     saveSession(session);
     return session;
   },
 
   submitAnswer: async (teamId: string, questionId: string, answer?: number, type: 'ANSWER' | 'PASS' = 'ANSWER'): Promise<Submission> => {
     let session = loadSession();
-    const question = MOCK_QUESTIONS.find(q => q.id === questionId);
+    const question = session.currentQuestion;
     
     if (type === 'PASS') {
       if (session.activeTeamId === teamId) passTurnInternal(session);
@@ -154,9 +144,7 @@ export const QuizService = {
 
   requestHint: async (teamId: string): Promise<QuizSession> => {
     let session = loadSession();
-    if (session.activeTeamId === teamId || !session.activeTeamId) {
-      session.requestedHint = true;
-    }
+    session.requestedHint = true;
     saveSession(session);
     return session;
   },
@@ -164,7 +152,6 @@ export const QuizService = {
   toggleHintVisibility: async (visible: boolean): Promise<QuizSession> => {
     let session = loadSession();
     session.hintVisible = visible;
-    // When enabled, clear the request
     if (visible) session.requestedHint = false;
     saveSession(session);
     return session;
@@ -174,8 +161,8 @@ export const QuizService = {
     let session = loadSession();
     session.status = QuizStatus.REVEALED;
     session.isReading = false;
-    const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
-    if (!currentQuestion) { saveSession(session); return session; }
+    const currentQuestion = session.currentQuestion;
+    if (!currentQuestion) return session;
 
     if (currentQuestion.roundType === 'BUZZER') {
       const sortedSubmissions = [...session.submissions].sort((a, b) => a.timestamp - b.timestamp);
@@ -204,13 +191,6 @@ export const QuizService = {
   resetSession: async (): Promise<QuizSession> => {
     let session = loadSession();
     session = { ...DEFAULT_SESSION, teams: session.teams.map(t => ({ ...t, score: 0 })) };
-    saveSession(session);
-    return session;
-  },
-
-  forcePass: async (): Promise<QuizSession> => {
-    let session = loadSession();
-    passTurnInternal(session);
     saveSession(session);
     return session;
   },

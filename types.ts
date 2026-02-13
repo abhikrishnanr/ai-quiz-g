@@ -15,6 +15,7 @@ export interface Question {
   text: string;
   options: string[];
   correctAnswer: number;
+  explanation: string; // Added explanation field
   points: number;
   timeLimit: number;
   roundType: RoundType;
@@ -40,18 +41,17 @@ export interface Submission {
 
 export interface QuizSession {
   id: string;
-  currentQuestionId: string | null;
+  currentQuestion: Question | null; // Store full question object as it is dynamic
   status: QuizStatus;
   startTime?: number;
   turnStartTime?: number;
   activeTeamId: string | null;
-  passedTeamIds: string[]; // Track who passed to prevent looping
-  requestedHint: boolean;   // Team requested a hint
-  hintVisible: boolean;     // Admin enabled the hint
-  passCount: number;
+  passedTeamIds: string[];
+  requestedHint: boolean;
+  hintVisible: boolean;
+  nextRoundType: RoundType; // Added to handle alternation
   teams: Team[];
   submissions: Submission[];
-  scoringMode: 'FIRST_RESPONSE' | 'STANDARD';
   isReading?: boolean;
 }
 
