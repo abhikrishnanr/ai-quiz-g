@@ -6,7 +6,7 @@ import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
 import { MOCK_QUESTIONS, HOST_SCRIPTS } from '../constants';
 import { Timer, Badge } from '../components/SharedUI';
-import { Trophy, CheckCircle2, Lock as LockIcon, Power } from 'lucide-react';
+import { Trophy, CheckCircle2, Lock as LockIcon, Power, Sparkles } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 // Audio decoding helpers
@@ -37,6 +37,7 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastActiveTeamIdRef = useRef<string | null>(null);
   const hasPlayedWarningRef = useRef<boolean>(false);
+  const hintShownRef = useRef<boolean>(false);
   const teamsAudioCachedRef = useRef<Set<string>>(new Set());
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -99,52 +100,17 @@ const DisplayView: React.FC = () => {
     }
   }, [session?.status, session?.currentQuestionId, currentQuestion, session?.teams]);
 
-  useEffect(() => {
-    if (!session || !currentQuestion) return;
-    const prepareResultAudio = async () => {
-        const lastSub = session.submissions[session.submissions.length - 1];
-        const uniqueKey = lastSub 
-            ? `result_${lastSub.teamId}_${lastSub.timestamp}` 
-            : `result_nosub_${currentQuestion.id}`;
-
-        if (audioCacheRef.current[uniqueKey]) return;
-        
-        let context = "";
-        let text = "";
-        if (lastSub) {
-            const team = session.teams.find(t => t.id === lastSub.teamId);
-            const isCorrect = !!lastSub.isCorrect;
-            context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
-        } else {
-             context = `No answer received. The correct answer is ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
-        }
-        
-        text = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion.text, context);
-        const audio = await API.getTTSAudio(text);
-        if (audio) {
-            audioCacheRef.current[uniqueKey] = audio;
-            audioCacheRef.current[uniqueKey + '_text'] = text; 
-        }
-    };
-    if (session.status === QuizStatus.LOCKED || session.status === QuizStatus.LIVE) {
-        prepareResultAudio();
-    }
-  }, [session?.submissions, session?.status, currentQuestion]);
-
   const playAudio = async (base64Data: string, text?: string, onEnd?: () => void) => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop(); } catch(e) {}
     }
-    
     if (text) {
         const cleanText = text.replace(/<[^>]*>/g, '').trim();
         setCommentary(cleanText);
     }
-    
     setIsSpeaking(true);
-
     try {
         const audioBuffer = await decodeAudioData(decodeBase64(base64Data), ctx);
         const source = ctx.createBufferSource();
@@ -178,6 +144,7 @@ const DisplayView: React.FC = () => {
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        hasPlayedWarningRef.current = false;
+       hintShownRef.current = false;
        const uniqueKey = `read_${currentQuestion?.id}`;
        if (!playFromCache(uniqueKey, undefined, () => {
            if (session.isReading) API.completeReading();
@@ -190,16 +157,21 @@ const DisplayView: React.FC = () => {
        }
     }
 
+    // Hint Voice Logic
+    if (session.hintVisible && !hintShownRef.current && currentQuestion) {
+      hintShownRef.current = true;
+      const hintText = `Scanning database for tactical intel... Here is a hint. <break time="500ms"/> ${currentQuestion.hint}`;
+      API.getTTSAudio(`<speak>${hintText}</speak>`).then(audio => {
+        if (audio) playAudio(audio, "Tactical Intel Decrypted");
+      });
+    }
+
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
        if (team) {
            SFX.playLock();
-           const played = playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
-           if (!played) {
-               setCommentary(`Locked by ${team.name}`);
-               setTimeout(() => setCommentary(""), 2000);
-           }
+           playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
        }
     }
 
@@ -216,23 +188,11 @@ const DisplayView: React.FC = () => {
             ? `result_${lastSub.teamId}_${lastSub.timestamp}` 
             : `result_nosub_${currentQuestion?.id}`;
        
-       const specificText = audioCacheRef.current[uniqueKey + '_text'];
-       
        if (audioCacheRef.current[uniqueKey]) {
-            playFromCache(uniqueKey, specificText);
+            playFromCache(uniqueKey, audioCacheRef.current[uniqueKey + '_text']);
        } else {
            const genericKey = isCorrect ? 'generic_correct' : 'generic_wrong';
-           const genericText = isCorrect ? HOST_SCRIPTS.GENERIC_CORRECT : HOST_SCRIPTS.GENERIC_WRONG;
-           playFromCache(genericKey, genericText, async () => {
-                let context = "No answer.";
-                if (lastSub) {
-                    const team = session.teams.find(t => t.id === lastSub.teamId);
-                    context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
-                }
-                const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
-                const audio = await API.getTTSAudio(insight);
-                if (audio) setTimeout(() => playAudio(audio, insight), 300);
-           });
+           playFromCache(genericKey, isCorrect ? HOST_SCRIPTS.GENERIC_CORRECT : HOST_SCRIPTS.GENERIC_WRONG);
        }
     }
 
@@ -242,15 +202,13 @@ const DisplayView: React.FC = () => {
     if (session.currentQuestionId !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestionId;
         hasPlayedWarningRef.current = false;
+        hintShownRef.current = false;
     }
-  }, [session?.status, session?.submissions.length, session?.activeTeamId, session?.id]);
+  }, [session?.status, session?.submissions.length, session?.activeTeamId, session?.hintVisible]);
 
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
-      if (session.isReading) {
-          setTurnTimeLeft(30);
-          return;
-      }
+      if (session.isReading) { setTurnTimeLeft(30); return; }
       if (!timerStartAt) setTimerStartAt(session.turnStartTime || Date.now());
       const interval = setInterval(() => {
         const startTime = session.turnStartTime || timerStartAt || Date.now();
@@ -279,22 +237,21 @@ const DisplayView: React.FC = () => {
       return (
           <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center cursor-pointer" onClick={initAudio}>
               <div className="relative group">
-                  <div className="absolute -inset-10 bg-indigo-500/30 rounded-full blur-xl group-hover:bg-indigo-400/50 transition-all duration-500 animate-pulse" />
+                  <div className="absolute -inset-10 bg-indigo-500/30 rounded-full blur-xl animate-pulse" />
                   <div className="relative p-10 bg-slate-900 border border-indigo-500/50 rounded-full">
                       <Power className="w-16 h-16 text-indigo-400" />
                   </div>
               </div>
-              <h1 className="mt-8 text-3xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Initialize Display Node</h1>
-              <p className="mt-2 text-slate-500 font-bold uppercase tracking-widest text-xs">Click to engage audio protocol</p>
+              <h1 className="mt-8 text-3xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Engage Display Node</h1>
           </div>
       );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex font-sans overflow-hidden selection:bg-indigo-500 selection:text-white relative">
+    <div className="min-h-screen bg-slate-950 flex font-sans overflow-hidden relative">
       <div className="absolute inset-0 pointer-events-none">
-         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full animate-pulse" />
-         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 blur-[150px] rounded-full animate-pulse" />
+         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full" />
+         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 blur-[150px] rounded-full" />
          <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)]" />
       </div>
 
@@ -308,12 +265,6 @@ const DisplayView: React.FC = () => {
                    <Badge color="indigo">INCOMING SEQUENCE</Badge>
                    <h2 className="text-5xl font-black text-white mt-4 tracking-tighter uppercase">{currentQuestion.roundType} ROUND</h2>
                    <p className="text-indigo-400 font-bold uppercase tracking-[0.3em] mt-2">Value: {currentQuestion.points} Credits</p>
-                   {currentQuestion.roundType === 'STANDARD' && activeTeam && (
-                        <div className="mt-4 p-4 bg-white/5 rounded-xl border border-white/10">
-                           <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Active Team</p>
-                           <p className="text-2xl font-black text-white uppercase">{activeTeam.name}</p>
-                        </div>
-                   )}
                </div>
            )}
         </div>
@@ -332,35 +283,25 @@ const DisplayView: React.FC = () => {
                   </div>
 
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-[3rem] shadow-2xl relative overflow-hidden group">
-                     {session.isReading && currentQuestion?.roundType === 'BUZZER' && (
-                         <div className="absolute inset-0 bg-amber-950/80 backdrop-blur-sm flex items-center justify-center z-30 animate-in fade-in">
-                           <div className="text-center">
-                              <div className="w-16 h-16 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4 animate-pulse">
-                                  <LockIcon className="w-8 h-8 text-amber-500" />
-                              </div>
-                              <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">BODHINI IS SPEAKING</h3>
-                              <p className="text-amber-200 mt-2 font-bold uppercase tracking-wider text-xs">Buzzers Locked</p>
-                           </div>
+                     {session.hintVisible && (
+                       <div className="absolute top-8 right-8 animate-bounce">
+                         <div className="bg-indigo-600/20 border border-indigo-500/50 p-4 rounded-2xl flex items-center gap-3">
+                           <Sparkles className="w-5 h-5 text-indigo-400" />
+                           <span className="text-xs font-black uppercase text-indigo-400 tracking-widest">Hint Decrypted</span>
                          </div>
+                       </div>
                      )}
 
-                     {session.status === QuizStatus.LOCKED && (
-                        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-20 animate-in fade-in">
-                           <div className="text-center">
-                              <LockIcon className="w-16 h-16 text-indigo-400 mx-auto mb-4 animate-bounce" />
-                              <h3 className="text-4xl font-black text-white uppercase italic tracking-widest">LOCKED</h3>
-                              {session.submissions.length > 0 && (
-                                  <p className="text-slate-400 mt-2 font-bold uppercase tracking-wider">
-                                      By {session.teams.find(t => t.id === session.submissions[session.submissions.length-1].teamId)?.name}
-                                  </p>
-                              )}
-                           </div>
-                        </div>
-                     )}
-                     
                      <h2 className="text-4xl md:text-5xl font-black text-white leading-tight mb-8 drop-shadow-lg">
                         {currentQuestion?.text}
                      </h2>
+
+                     {session.hintVisible && (
+                       <div className="mb-8 p-6 bg-indigo-600/10 border-l-4 border-indigo-500 rounded-r-2xl animate-in zoom-in">
+                          <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.4em] mb-2">Tactical Intelligence</p>
+                          <p className="text-xl font-bold italic text-slate-200">"{currentQuestion?.hint}"</p>
+                       </div>
+                     )}
 
                      <div className="grid grid-cols-1 gap-4">
                         {currentQuestion?.options.map((opt, i) => (
@@ -390,11 +331,11 @@ const DisplayView: React.FC = () => {
                         <div className="flex items-center gap-4">
                            <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700">
                               <Timer seconds={turnTimeLeft} max={30} />
-                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{session.isReading ? 'READING QUESTION...' : `${turnTimeLeft}s REMAINING`}</p>
+                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{session.isReading ? 'READING...' : `${turnTimeLeft}s`}</p>
                            </div>
                            {activeTeam && (
                               <div className="text-left">
-                                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Current Turn</p>
+                                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Active Node</p>
                                  <p className="text-2xl font-black text-white uppercase">{activeTeam.name}</p>
                               </div>
                            )}
@@ -404,7 +345,7 @@ const DisplayView: React.FC = () => {
                      {isResult && (
                         <div className="animate-in slide-in-from-bottom flex items-center gap-4 ml-auto">
                             <div className="text-right">
-                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Result</p>
+                                <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Status</p>
                                 <p className="text-3xl font-black text-white uppercase">{session.submissions[session.submissions.length-1]?.isCorrect ? 'SUCCESS' : 'FAILURE'}</p>
                             </div>
                             <div className={`p-4 rounded-full ${session.submissions[session.submissions.length-1]?.isCorrect ? 'bg-emerald-500' : 'bg-red-500'}`}>

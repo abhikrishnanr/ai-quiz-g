@@ -45,6 +45,9 @@ export interface QuizSession {
   startTime?: number;
   turnStartTime?: number;
   activeTeamId: string | null;
+  passedTeamIds: string[]; // Track who passed to prevent looping
+  requestedHint: boolean;   // Team requested a hint
+  hintVisible: boolean;     // Admin enabled the hint
   passCount: number;
   teams: Team[];
   submissions: Submission[];

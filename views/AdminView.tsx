@@ -6,10 +6,9 @@ import { QuizStatus, Difficulty } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 import { Card, Button, Badge } from '../components/SharedUI';
 import { 
-  Settings, Zap, Layers, ChevronRight, 
-  CheckCircle, BrainCircuit, 
+  Settings, Zap, CheckCircle, BrainCircuit, 
   MessageSquare, Play, Lock as LockIcon, Eye, Star,
-  Sparkles, Activity, Power, ShieldAlert
+  Sparkles, Activity, ShieldAlert, AlertTriangle
 } from 'lucide-react';
 
 const AdminView: React.FC = () => {
@@ -121,11 +120,17 @@ const AdminView: React.FC = () => {
               </div>
             </div>
           </div>
+
           <div className="flex items-center gap-6">
-             <div className="hidden md:flex flex-col items-end">
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Master Session ID</span>
-                <span className="text-sm font-mono text-indigo-400 uppercase">{session.id.substring(0,14)}</span>
-             </div>
+             {session.requestedHint && (
+               <div className="flex items-center gap-3 px-6 py-3 bg-amber-500/20 border border-amber-500/50 rounded-2xl animate-pulse">
+                 <AlertTriangle className="w-5 h-5 text-amber-500" />
+                 <span className="text-xs font-black uppercase text-amber-500">Hint Requested by {session.teams.find(t => t.id === session.activeTeamId)?.name}</span>
+                 <Button variant="amber" className="h-10 px-4 py-0" onClick={() => performAction(() => API.toggleHint(true))}>
+                   Grant
+                 </Button>
+               </div>
+             )}
              <Button variant={confirmReset ? 'danger' : 'secondary'} onClick={handleReset} disabled={updating} className="h-14">
                {confirmReset ? 'Confirm Reset?' : 'Full System Reset'}
              </Button>
@@ -133,8 +138,7 @@ const AdminView: React.FC = () => {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
-          
-          {/* LEFT: NODES (Questions) */}
+          {/* LEFT: NODES */}
           <div className="lg:col-span-3 space-y-6">
             <Card className="max-h-[85vh] flex flex-col overflow-hidden" noPadding>
                <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
@@ -196,10 +200,18 @@ const AdminView: React.FC = () => {
                          </div>
                          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-2">Node Reference: {currentQuestion.id}</p>
                       </div>
-                      <div className="bg-white/5 p-6 rounded-[2rem] border border-white/10 max-w-[280px] shadow-inner">
-                         <div className="flex items-center gap-2.5 mb-2 text-indigo-400">
-                            <Sparkles className="w-4 h-4" />
-                            <span className="text-[10px] font-black uppercase tracking-[0.3em]">Tactical Feed</span>
+                      <div className={`p-6 rounded-[2rem] border-2 transition-all duration-500 max-w-[280px] shadow-inner ${session.hintVisible ? 'bg-indigo-600/20 border-indigo-500 shadow-indigo-500/20' : 'bg-white/5 border-white/10 opacity-60'}`}>
+                         <div className="flex items-center justify-between mb-3">
+                           <div className="flex items-center gap-2.5 text-indigo-400">
+                              <Sparkles className="w-4 h-4" />
+                              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Tactical Feed</span>
+                           </div>
+                           <button 
+                             onClick={() => performAction(() => API.toggleHint(!session.hintVisible))}
+                             className={`text-[9px] font-black uppercase px-2 py-1 rounded-lg border transition-all ${session.hintVisible ? 'bg-indigo-500 text-white border-white' : 'bg-white/10 text-slate-400 border-white/10'}`}
+                           >
+                             {session.hintVisible ? 'Enabled' : 'Disabled'}
+                           </button>
                          </div>
                          <p className="text-xs font-bold italic text-slate-300 leading-relaxed">"{currentQuestion.hint}"</p>
                       </div>
@@ -239,7 +251,7 @@ const AdminView: React.FC = () => {
             </Card>
           </div>
 
-          {/* RIGHT: ANALYTICS & RANKING */}
+          {/* RIGHT: ANALYTICS */}
           <div className="lg:col-span-3 space-y-8">
              <Card className="h-[450px] flex flex-col" noPadding>
                 <div className="p-7 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">

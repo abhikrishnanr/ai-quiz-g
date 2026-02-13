@@ -106,6 +106,8 @@ export const API = {
   },
   forcePass: async (): Promise<QuizSession> => QuizService.forcePass(),
   completeReading: async (): Promise<QuizSession> => QuizService.completeReading(),
+  requestHint: async (teamId: string): Promise<QuizSession> => QuizService.requestHint(teamId),
+  toggleHint: async (visible: boolean): Promise<QuizSession> => QuizService.toggleHintVisibility(visible),
 
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
     const random = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];

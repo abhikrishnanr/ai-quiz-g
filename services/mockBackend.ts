@@ -9,11 +9,14 @@ const DEFAULT_SESSION: QuizSession = {
   currentQuestionId: null,
   status: QuizStatus.PREVIEW,
   teams: [
-    { id: 't1', name: 'Cloud Rangers', score: 0 },
-    { id: 't2', name: 'Logic Lions', score: 0 },
-    { id: 't3', name: 'Data Divas', score: 0 }
+    { id: 't1', name: 'Team A', score: 0 },
+    { id: 't2', name: 'Team B', score: 0 },
+    { id: 't3', name: 'Team C', score: 0 }
   ],
   submissions: [],
+  passedTeamIds: [],
+  requestedHint: false,
+  hintVisible: false,
   scoringMode: 'FIRST_RESPONSE',
   activeTeamId: null,
   turnStartTime: 0,
@@ -21,13 +24,10 @@ const DEFAULT_SESSION: QuizSession = {
   isReading: false
 };
 
-// Helper to load/save from localStorage
 const loadSession = (): QuizSession => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
+    if (stored) return JSON.parse(stored);
   } catch (e) {
     console.error("Failed to load session", e);
   }
@@ -45,35 +45,45 @@ const saveSession = (session: QuizSession) => {
 const passTurnInternal = (session: QuizSession) => {
   if (!session.activeTeamId) return;
   
-  // Award 10 points for passing
-  const passingTeam = session.teams.find(t => t.id === session.activeTeamId);
-  if (passingTeam) {
-    passingTeam.score += 10;
+  // Track that this team has passed
+  if (!session.passedTeamIds.includes(session.activeTeamId)) {
+    session.passedTeamIds.push(session.activeTeamId);
   }
 
-  // Move to next team
-  const currentIndex = session.teams.findIndex(t => t.id === session.activeTeamId);
-  const nextIndex = (currentIndex + 1) % session.teams.length;
-  session.activeTeamId = session.teams[nextIndex].id;
-  session.turnStartTime = Date.now();
-  session.passCount++;
-  // Reset reading status for the new team if we wanted re-reading, but usually pass just continues.
+  // Small reward for passing (strategic play)
+  const passingTeam = session.teams.find(t => t.id === session.activeTeamId);
+  if (passingTeam) passingTeam.score += 5;
+
+  // Find next team that hasn't passed yet
+  const availableTeams = session.teams.filter(t => !session.passedTeamIds.includes(t.id));
+
+  if (availableTeams.length > 0) {
+    // Pick the next logical team (sequential)
+    const currentIndex = session.teams.findIndex(t => t.id === session.activeTeamId);
+    let nextIndex = (currentIndex + 1) % session.teams.length;
+    
+    // Find next available in the list
+    while (session.passedTeamIds.includes(session.teams[nextIndex].id)) {
+      nextIndex = (nextIndex + 1) % session.teams.length;
+    }
+    
+    session.activeTeamId = session.teams[nextIndex].id;
+    session.turnStartTime = Date.now();
+    session.passCount++;
+  } else {
+    // No one left to pass to
+    session.status = QuizStatus.LOCKED;
+    session.activeTeamId = null;
+  }
 };
 
 export const QuizService = {
   getSession: async (): Promise<QuizSession> => {
     let session = loadSession();
-
-    // Check for Auto-Pass in Standard rounds (Simulated time-based logic)
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
-    if (
-      session.status === QuizStatus.LIVE && 
-      currentQuestion?.roundType === 'STANDARD' && 
-      session.turnStartTime > 0
-    ) {
+    if (session.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && session.turnStartTime > 0) {
       const elapsed = (Date.now() - session.turnStartTime) / 1000;
-      // INCREASED TIMEOUT: 60s (30s reading + 30s thinking)
-      if (elapsed >= 60) {
+      if (elapsed >= 60) { // Auto pass after 60s
         passTurnInternal(session);
         saveSession(session);
       }
@@ -87,7 +97,7 @@ export const QuizService = {
     if (status === QuizStatus.LIVE) {
       session.startTime = Date.now();
       session.turnStartTime = Date.now();
-      session.isReading = true; // Start reading phase
+      session.isReading = true;
     } else {
       session.isReading = false;
     }
@@ -101,6 +111,9 @@ export const QuizService = {
     session.currentQuestionId = questionId;
     session.status = QuizStatus.PREVIEW;
     session.submissions = [];
+    session.passedTeamIds = [];
+    session.requestedHint = false;
+    session.hintVisible = false;
     session.passCount = 0;
     session.isReading = false;
     
@@ -108,7 +121,6 @@ export const QuizService = {
       session.scoringMode = question.roundType === 'BUZZER' ? 'FIRST_RESPONSE' : 'STANDARD';
       session.activeTeamId = question.roundType === 'STANDARD' ? session.teams[0].id : null;
     }
-    
     saveSession(session);
     return session;
   },
@@ -118,37 +130,44 @@ export const QuizService = {
     const question = MOCK_QUESTIONS.find(q => q.id === questionId);
     
     if (type === 'PASS') {
-      if (session.activeTeamId === teamId) {
-        passTurnInternal(session);
-      }
+      if (session.activeTeamId === teamId) passTurnInternal(session);
       saveSession(session);
       return { teamId, questionId, type, timestamp: Date.now() };
     }
 
     const isCorrect = question?.correctAnswer === answer;
-    const submission: Submission = {
-      teamId,
-      questionId,
-      answer,
-      type,
-      timestamp: Date.now(),
-      isCorrect
-    };
+    const submission: Submission = { teamId, questionId, answer, type, timestamp: Date.now(), isCorrect };
 
     if (session.status === QuizStatus.LIVE) {
        const exists = session.submissions.find(s => s.teamId === teamId);
        if (!exists) {
           session.submissions.push(submission);
-          
           if (question?.roundType === 'STANDARD' && teamId === session.activeTeamId) {
             session.status = QuizStatus.LOCKED;
             session.isReading = false;
           }
        }
     }
-    
     saveSession(session);
     return submission;
+  },
+
+  requestHint: async (teamId: string): Promise<QuizSession> => {
+    let session = loadSession();
+    if (session.activeTeamId === teamId || !session.activeTeamId) {
+      session.requestedHint = true;
+    }
+    saveSession(session);
+    return session;
+  },
+
+  toggleHintVisibility: async (visible: boolean): Promise<QuizSession> => {
+    let session = loadSession();
+    session.hintVisible = visible;
+    // When enabled, clear the request
+    if (visible) session.requestedHint = false;
+    saveSession(session);
+    return session;
   },
 
   revealAndScore: async (): Promise<QuizSession> => {
@@ -156,19 +175,14 @@ export const QuizService = {
     session.status = QuizStatus.REVEALED;
     session.isReading = false;
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
-    if (!currentQuestion) {
-        saveSession(session);
-        return session;
-    }
+    if (!currentQuestion) { saveSession(session); return session; }
 
     if (currentQuestion.roundType === 'BUZZER') {
       const sortedSubmissions = [...session.submissions].sort((a, b) => a.timestamp - b.timestamp);
       let winnerFound = false;
-
       for (const sub of sortedSubmissions) {
         const team = session.teams.find(t => t.id === sub.teamId);
         if (!team) continue;
-
         if (sub.isCorrect && !winnerFound) {
           team.score += currentQuestion.points;
           winnerFound = true;
@@ -180,22 +194,16 @@ export const QuizService = {
       session.submissions.forEach(sub => {
         const team = session.teams.find(t => t.id === sub.teamId);
         if (!team || sub.type === 'PASS') return;
-        if (sub.isCorrect) {
-          team.score += currentQuestion.points;
-        }
+        if (sub.isCorrect) team.score += currentQuestion.points;
       });
     }
-
     saveSession(session);
     return session;
   },
 
   resetSession: async (): Promise<QuizSession> => {
     let session = loadSession();
-    session = {
-      ...DEFAULT_SESSION,
-      teams: session.teams.map(t => ({ ...t, score: 0 }))
-    };
+    session = { ...DEFAULT_SESSION, teams: session.teams.map(t => ({ ...t, score: 0 })) };
     saveSession(session);
     return session;
   },
@@ -211,7 +219,6 @@ export const QuizService = {
     let session = loadSession();
     if (session.status === QuizStatus.LIVE) {
       session.isReading = false;
-      // Reset turn start time to now so the 30s timer is accurate for the thinking phase
       session.turnStartTime = Date.now();
     }
     saveSession(session);
