@@ -21,30 +21,48 @@ export const HOST_SCRIPTS = {
 export const MOCK_QUESTIONS: Question[] = [
   {
     id: 'q1',
-    text: 'What is the primary architectural component in AWS for serverless compute?',
-    options: ['EC2', 'Lambda', 'Fargate', 'S3'],
-    correctAnswer: 1,
+    text: 'What was the former name of Digital University Kerala before its upgrade to a full university?',
+    options: ['IIITM-K', 'C-DIT', 'KELTRON', 'Technopark'],
+    correctAnswer: 0,
     points: 100,
-    timeLimit: 30,
-    roundType: 'BUZZER'
-  },
-  {
-    id: 'q2',
-    text: 'Which DynamoDB feature provides in-memory caching for faster performance?',
-    options: ['Global Tables', 'DAX', 'Secondary Indexes', 'Streams'],
-    correctAnswer: 1,
-    points: 150,
     timeLimit: 30,
     roundType: 'STANDARD'
   },
   {
+    id: 'q2',
+    text: 'In which specific innovation hub in Thiruvananthapuram is the main DUK campus located?',
+    options: ['Technopark Phase 1', 'Technocity (Pallippuram)', 'Kinfra Park', 'Cyberpark'],
+    correctAnswer: 1,
+    points: 200,
+    timeLimit: 30,
+    roundType: 'BUZZER'
+  },
+  {
     id: 'q3',
-    text: 'What does "DUK" stand for in our platform context?',
-    options: ['Digital University Kerala', 'Data Unit Kernal', 'Digital Unified Knowledge', 'Distributed User Key'],
+    text: 'Digital University Kerala was established by the Government of Kerala in which year?',
+    options: ['2018', '2019', '2020', '2021'],
+    correctAnswer: 2,
+    points: 100,
+    timeLimit: 30,
+    roundType: 'STANDARD'
+  },
+  {
+    id: 'q4',
+    text: 'Who served as the first Vice Chancellor of Digital University Kerala?',
+    options: ['Dr. Saji Gopinath', 'Dr. K.M. Abraham', 'Dr. V.K. Ramachandran', 'Shri. P. Rajeeve'],
     correctAnswer: 0,
     points: 200,
     timeLimit: 30,
     roundType: 'BUZZER'
+  },
+  {
+    id: 'q5',
+    text: 'Which of the following is NOT one of the primary schools within DUK?',
+    options: ['School of Computer Science', 'School of Digital Sciences', 'School of Electronic Systems', 'School of Marine Biology'],
+    correctAnswer: 3,
+    points: 150,
+    timeLimit: 30,
+    roundType: 'STANDARD'
   }
 ];
 
