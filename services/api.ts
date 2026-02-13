@@ -4,6 +4,9 @@ import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '.
 import { QuizService } from './mockBackend';
 
 export const API = {
+  // Simple in-memory cache for TTS audio to avoid 429s on repeated phrases
+  ttsCache: new Map<string, string>(),
+
   fetchSession: async (id: string): Promise<QuizSession> => {
     return QuizService.getSession();
   },
@@ -72,6 +75,12 @@ export const API = {
 
   // Generates audio from text directly (Lower Latency: ~500ms - 1s)
   getTTSAudio: async (text: string): Promise<string | undefined> => {
+    // 1. Check Cache First
+    const cacheKey = text.trim().toLowerCase();
+    if (API.ttsCache.has(cacheKey)) {
+      return API.ttsCache.get(cacheKey);
+    }
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
@@ -86,14 +95,26 @@ export const API = {
           },
         },
       });
-      return response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    } catch (error) {
-      console.error("TTS Error:", error);
+      
+      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      
+      // 2. Save to Cache if successful
+      if (audioData) {
+        API.ttsCache.set(cacheKey, audioData);
+      }
+      
+      return audioData;
+    } catch (error: any) {
+      if (error.message?.includes('429')) {
+         console.warn("TTS Rate Limit Reached - Using text fallback");
+      } else {
+         console.error("TTS Error:", error);
+      }
       return undefined;
     }
   },
 
-  // Alias for backward compatibility, but we prefer specific calls now
+  // Alias for backward compatibility
   generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
     return API.getTTSAudio(text);
   },

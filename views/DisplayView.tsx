@@ -43,6 +43,7 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastActiveTeamIdRef = useRef<string | null>(null);
   const hasPlayedWarningRef = useRef<boolean>(false);
+  const teamsAudioCachedRef = useRef<Set<string>>(new Set());
   
   // Audio System Refs
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -90,17 +91,40 @@ const DisplayView: React.FC = () => {
 
   // --- Pre-Fetching Logic --- //
 
-  // 1. On Question Load (PREVIEW Mode): Cache EVERYTHING needed for the upcoming round
+  // 1. Static Team Clips (Locked/Passing) - Generate ONCE per session/team, not per question
+  useEffect(() => {
+     if (!session?.teams) return;
+
+     session.teams.forEach(async (team) => {
+        if (!teamsAudioCachedRef.current.has(team.id)) {
+            // Mark as processing immediately to avoid duplicates
+            teamsAudioCachedRef.current.add(team.id);
+
+            // Fetch "Locked"
+            const lockText = `Answer locked by ${team.name}.`;
+            const lockAudio = await API.getTTSAudio(lockText);
+            if (lockAudio) audioCacheRef.current[`locked_${team.id}`] = lockAudio;
+
+            // Fetch "Passing"
+            const passText = `Passing to ${team.name}.`;
+            const passAudio = await API.getTTSAudio(passText);
+            if (passAudio) audioCacheRef.current[`pass_${team.id}`] = passAudio;
+        }
+     });
+  }, [session?.teams]);
+
+
+  // 2. Question Specific Audio - Run when question changes
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
         
-        // Clear old round specific cache but keep generals
-        const generalKeys = ['warning_10s', 'generic_correct', 'generic_wrong'];
+        // Clear old result cache but keep generals and team clips
+        const preservePrefixes = ['warning_', 'generic_', 'locked_', 'pass_', 'question_'];
         Object.keys(audioCacheRef.current).forEach(key => {
-            if (!generalKeys.includes(key)) delete audioCacheRef.current[key];
+            if (key.startsWith('result_')) delete audioCacheRef.current[key];
         });
 
-        // A. Cache Question Reading
+        // Cache Question Reading
         const prepareQuestionAudio = async () => {
             const startingTeam = session.teams.find(t => t.id === session.activeTeamId); 
             const textToRead = API.formatQuestionForSpeech(currentQuestion, startingTeam?.name);
@@ -108,33 +132,12 @@ const DisplayView: React.FC = () => {
             if (audio) audioCacheRef.current['question_read'] = audio;
         };
 
-        // B. Cache "Locked by [Team]" for ALL teams
-        const prepareTeamLocks = async () => {
-            session.teams.forEach(async (team) => {
-                const text = `Answer locked by ${team.name}.`;
-                const audio = await API.getTTSAudio(text);
-                if (audio) audioCacheRef.current[`locked_${team.id}`] = audio;
-            });
-        };
-
-        // C. Cache "Passing to [Team]" for ALL teams (Standard Round)
-        const prepareTeamPasses = async () => {
-             session.teams.forEach(async (team) => {
-                const text = `Passing to ${team.name}.`;
-                const audio = await API.getTTSAudio(text);
-                if (audio) audioCacheRef.current[`pass_${team.id}`] = audio;
-            });
-        };
-
         prepareQuestionAudio();
-        prepareTeamLocks();
-        if (currentQuestion.roundType === 'STANDARD') {
-            prepareTeamPasses();
-        }
     }
   }, [session?.status, session?.currentQuestionId, currentQuestion, session?.teams]);
 
-  // 2. Pre-fetch Result Audio as soon as possible (Locked or Submissions exist)
+
+  // 3. Pre-fetch Result Audio (Lazy load when locked)
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
@@ -145,9 +148,6 @@ const DisplayView: React.FC = () => {
             : `result_nosub_${currentQuestion.id}`;
 
         if (audioCacheRef.current[cacheKey]) return;
-
-        // Ensure we don't start generating if we are already revealed and it's too late (handled by playback logic)
-        // But pre-fetching is good if possible.
         
         let context = "";
         let text = "";
@@ -164,7 +164,7 @@ const DisplayView: React.FC = () => {
         const audio = await API.getTTSAudio(text);
         if (audio) {
             audioCacheRef.current[cacheKey] = audio;
-            audioCacheRef.current[cacheKey + '_text'] = text; // store text for subtitle
+            audioCacheRef.current[cacheKey + '_text'] = text; 
         }
     };
     
@@ -180,6 +180,7 @@ const DisplayView: React.FC = () => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
 
+    // Stop current speech instantly to allow interruption (host style)
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop(); } catch(e) {}
     }

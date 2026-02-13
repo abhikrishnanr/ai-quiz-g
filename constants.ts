@@ -67,6 +67,6 @@ export const MOCK_QUESTIONS: Question[] = [
 ];
 
 export const APP_CONFIG = {
-  POLL_INTERVAL: 500, // Faster polling for better sync
-  BUZZER_COOLDOWN: 500,
+  POLL_INTERVAL: 2000, // Slowed down to prevent rate limits
+  BUZZER_COOLDOWN: 1000,
 };
