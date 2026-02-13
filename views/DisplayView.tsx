@@ -19,14 +19,12 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext, sampleRate: number = 24000): Promise<AudioBuffer> {
-  const dataInt16 = new Int16Array(data.buffer);
-  const buffer = ctx.createBuffer(1, dataInt16.length, sampleRate);
-  const channelData = buffer.getChannelData(0);
-  for (let i = 0; i < dataInt16.length; i++) {
-    channelData[i] = dataInt16[i] / 32768.0;
-  }
-  return buffer;
+// FIX: Use native browser decoding for MP3 data instead of raw PCM parsing
+async function decodeAudioData(data: Uint8Array, ctx: AudioContext): Promise<AudioBuffer> {
+  // We need to pass an ArrayBuffer to decodeAudioData.
+  // We slice it to ensure we have a clean buffer copy required by the API.
+  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+  return await ctx.decodeAudioData(arrayBuffer);
 }
 
 const DisplayView: React.FC = () => {
@@ -57,7 +55,8 @@ const DisplayView: React.FC = () => {
 
   const initAudio = () => {
     if (!audioContextRef.current) {
-      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+      // Remove fixed sampleRate to allow native hardware rate (better for MP3 decoding)
+      audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
     }
     if (audioContextRef.current.state === 'suspended') {
       audioContextRef.current.resume();
