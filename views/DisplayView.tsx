@@ -70,6 +70,7 @@ const DisplayView: React.FC = () => {
       };
       source.start();
     } else {
+      // Fallback simulation if API key missing or fails
       setIsSpeaking(true);
       setTimeout(() => {
         setIsSpeaking(false);
@@ -85,6 +86,9 @@ const DisplayView: React.FC = () => {
       lastState.current = currentStateStr;
       
       const fetchAndSpeak = async () => {
+        if (!session.currentQuestionId) return; 
+
+        // Don't comment on every single tick, just status changes
         const teamName = session.activeTeamId ? session.teams.find(t => t.id === session.activeTeamId)?.name : '';
         const insight = await API.getAIHostInsight(
           session.status, 
@@ -102,232 +106,119 @@ const DisplayView: React.FC = () => {
 
   const activeTeam = session.teams.find(t => t.id === session.activeTeamId);
 
-  const renderContent = () => {
-    if (!session.currentQuestionId) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-center space-y-12 animate-reveal">
-          <div className="bg-slate-950 p-16 rounded-[4rem] shadow-2xl ring-8 ring-indigo-500/20 animate-float relative overflow-hidden group">
-            <div className="absolute inset-0 animate-shimmer pointer-events-none" />
-            <BrainCircuit className="w-48 h-48 text-white relative z-10" />
-          </div>
-          <h1 className="text-9xl font-display font-black text-slate-950 tracking-tighter drop-shadow-2xl">
-            DUK AI <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-cyan-500">QUIZ</span>
-          </h1>
-          <p className="text-3xl text-slate-500 font-black uppercase tracking-[0.6em] animate-pulse">Aura v3.1 Node Ready</p>
-        </div>
-      );
-    }
-
-    if (session.status === QuizStatus.PREVIEW) {
-      const isBuzzer = currentQuestion?.roundType === 'BUZZER';
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-center space-y-12 animate-reveal">
-          <div className={`px-20 py-8 rounded-full font-display text-6xl font-black uppercase tracking-[0.2em] shadow-2xl animate-glow-indigo border-b-8 ${isBuzzer ? 'bg-amber-600 text-white border-amber-800' : 'bg-indigo-700 text-white border-indigo-900'}`}>
-             {isBuzzer ? 'BUZZER SEQUENCE' : 'STANDARD TURN'}
-          </div>
-          <div className="p-24 bg-white rounded-[4rem] shadow-2xl border-8 border-slate-100 max-w-6xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 p-8">
-               <TrendingUp className="w-16 h-16 text-slate-100" />
-            </div>
-            <h3 className="text-9xl font-black text-slate-950 tracking-tighter mb-10 tabular-nums">
-              {currentQuestion?.points} <span className="text-4xl text-slate-300 uppercase tracking-[0.4em] ml-4 font-bold">CREDITS</span>
-            </h3>
-            <div className="mt-12 space-y-8">
-               <p className="text-5xl font-black text-slate-800 uppercase tracking-tighter italic">Initializing Analysis...</p>
-               <p className="text-2xl text-slate-400 font-bold uppercase tracking-widest animate-pulse">Synchronizing cluster state</p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    if (session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED) {
-      const isBuzzer = currentQuestion?.roundType === 'BUZZER';
-      return (
-        <div className="space-y-12 max-w-[95rem] mx-auto py-8 px-4 animate-reveal">
-          <div className={`flex justify-between items-center p-12 rounded-[4rem] border-4 shadow-2xl bg-white transition-colors duration-500 ${isBuzzer ? 'border-amber-300 shadow-amber-100' : 'border-indigo-300 shadow-indigo-100'}`}>
-            {!isBuzzer && activeTeam ? (
-              <div className="flex items-center gap-8">
-                <div className="p-8 rounded-[2rem] bg-indigo-700 text-white shadow-2xl animate-float">
-                  <UserCheck className="w-16 h-16" />
-                </div>
-                <div>
-                  <p className="text-slate-400 uppercase font-black tracking-widest text-lg mb-1 italic">ACTIVE NODE</p>
-                  <p className="text-7xl font-black text-slate-950 tracking-tight uppercase">{activeTeam.name}</p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-8">
-                <div className={`p-8 rounded-[2rem] shadow-2xl text-white ${isBuzzer ? 'bg-amber-600 animate-pulse' : 'bg-slate-950'}`}>
-                  {isBuzzer ? <Zap className="w-16 h-16" /> : <Layers className="w-16 h-16" />}
-                </div>
-                <p className="text-7xl font-black text-slate-950 uppercase tracking-tighter italic">{isBuzzer ? 'INTERCEPT OPEN' : 'STANDARD'}</p>
-              </div>
-            )}
-            
-            {!isBuzzer && (
-              <div className="text-center px-16 border-x-4 border-slate-100">
-                <p className="text-slate-400 uppercase font-black tracking-widest text-sm mb-4 italic">Shot Clock</p>
-                <div className={`text-9xl font-display font-black leading-none tracking-tighter tabular-nums transition-colors duration-300 ${turnTimeLeft < 10 ? 'text-red-600 animate-pulse' : 'text-slate-950'}`}>
-                  {turnTimeLeft}s
-                </div>
-              </div>
-            )}
-
-            <div className="text-right">
-              <p className="text-slate-400 uppercase font-black tracking-widest text-lg mb-1 italic">Pot Size</p>
-              <p className="text-8xl font-display font-black text-slate-950 tracking-tighter">{currentQuestion?.points} <span className="text-2xl text-slate-300">CR</span></p>
-            </div>
-          </div>
-
-          <div className="relative bg-white rounded-[5rem] p-24 shadow-2xl border-4 border-slate-200 overflow-hidden min-h-[600px] flex flex-col justify-center transition-all duration-700">
-             {session.status === QuizStatus.LOCKED && (
-               <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center z-50 animate-reveal">
-                 <div className="relative">
-                    <div className="absolute inset-0 bg-indigo-500 rounded-full blur-[80px] opacity-40 animate-pulse" />
-                    <LockIcon className="w-48 h-48 text-white mb-10 animate-bounce relative z-10" />
-                 </div>
-                 <h2 className="text-white text-[10rem] font-display font-black uppercase tracking-[0.2em] italic">LOCKED</h2>
-                 <p className="text-indigo-400 text-4xl font-black uppercase mt-10 tracking-[0.6em] animate-pulse">Verifying Priority Bit</p>
-               </div>
-             )}
-             
-             <h2 className="text-[6rem] font-black text-slate-950 leading-[1.05] mb-20 tracking-tight italic drop-shadow-sm">
-                {currentQuestion?.text}
-             </h2>
-
-             <div className="grid grid-cols-2 gap-12">
-               {currentQuestion?.options.map((opt, i) => (
-                 <div key={i} className="group flex items-center gap-10 p-10 bg-slate-50 rounded-[3.5rem] border-2 border-slate-200 shadow-sm hover:bg-white hover:border-indigo-300 transition-all duration-300 transform hover:scale-[1.02]">
-                   <div className="w-24 h-24 bg-slate-950 text-white rounded-[1.8rem] flex items-center justify-center text-6xl font-black font-display shadow-xl group-hover:bg-indigo-600 transition-colors">
-                     {String.fromCharCode(65 + i)}
-                   </div>
-                   <p className="text-5xl font-black text-slate-900 tracking-tight">{opt}</p>
-                 </div>
-               ))}
-             </div>
-          </div>
-          
-          {!isBuzzer && (
-            <div className="px-8">
-              <Timer seconds={turnTimeLeft} max={30} />
-            </div>
-          )}
-        </div>
-      );
-    }
-
-    if (session.status === QuizStatus.REVEALED) {
-      const isBuzzer = currentQuestion?.roundType === 'BUZZER';
-      return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 max-w-[95rem] mx-auto py-12 px-8 h-full items-center">
-          <div className="space-y-12 animate-reveal flex flex-col justify-center">
-             <div className="bg-emerald-700 text-white p-24 rounded-[6rem] shadow-[0_30px_100px_rgba(16,185,129,0.3)] relative overflow-hidden border-b-[20px] border-emerald-900 group">
-                <div className="absolute inset-0 animate-shimmer pointer-events-none opacity-30" />
-                <h2 className="text-4xl uppercase font-black tracking-[0.4em] text-emerald-300 mb-8 italic">Validated Logic</h2>
-                <p className="text-9xl font-black leading-tight tracking-tighter text-white drop-shadow-2xl">
-                   {currentQuestion?.options[currentQuestion.correctAnswer]}
-                </p>
-                <div className="mt-16 inline-flex items-center gap-8 bg-white/20 px-14 py-6 rounded-[2.5rem] font-black text-7xl shadow-xl transform group-hover:scale-110 transition-transform">
-                   <Star className="w-16 h-16 text-amber-400 animate-spin-slow" />
-                   +{currentQuestion?.points} <span className="text-2xl text-white/60 uppercase tracking-widest ml-4">CREDITS</span>
-                </div>
-             </div>
-
-             <div className="bg-white p-16 rounded-[5rem] shadow-2xl border-4 border-slate-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-10 opacity-5">
-                   <BrainCircuit className="w-32 h-32" />
-                </div>
-                <h3 className="text-4xl font-black text-slate-950 mb-10 uppercase italic tracking-tighter">AI Consensus Summary</h3>
-                <div className="text-4xl font-bold text-slate-800 leading-relaxed italic border-l-[16px] border-indigo-600 pl-12">
-                   {isBuzzer 
-                     ? "Temporal priority verified. Submission payload matches standard oracle values. Reward distribution initiated." 
-                     : "Turn possession cycle concluded. Tactical pass bonuses distributed to idle nodes. Standby for next set."}
-                </div>
-             </div>
-          </div>
-
-          <div className="bg-slate-950 text-white p-16 rounded-[6rem] shadow-2xl flex flex-col animate-reveal border-b-[20px] border-indigo-900 min-h-[850px] relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 animate-shimmer opacity-20" />
-            <h2 className="text-7xl font-display font-black mb-16 flex items-center gap-10 border-b-4 border-white/10 pb-12 tracking-tighter italic">
-              <Trophy className="w-28 h-28 text-amber-500 animate-float" /> CLUSTER RANK
-            </h2>
-            <div className="space-y-10 flex-grow">
-              {[...session.teams].sort((a,b) => b.score - a.score).map((t, idx) => {
-                const isWinner = idx === 0;
-                return (
-                  <div 
-                    key={t.id} 
-                    className={`flex justify-between items-center p-14 rounded-[4rem] transition-all duration-700 transform ${
-                      isWinner 
-                        ? 'bg-indigo-700 shadow-[0_20px_60px_rgba(79,70,229,0.4)] scale-105 border-4 border-indigo-400 ring-8 ring-indigo-500/10' 
-                        : 'bg-white/5 border border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex items-center gap-12">
-                      <span className={`text-7xl font-black italic ${isWinner ? 'text-indigo-200' : 'text-white/20'}`}>
-                        {idx + 1 < 10 ? `0${idx + 1}` : idx + 1}
-                      </span>
-                      <span className="text-7xl font-black tracking-tighter text-white uppercase italic">{t.name}</span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                       <span className={`text-sm font-black uppercase tracking-widest mb-2 ${isWinner ? 'text-indigo-300' : 'text-slate-500'}`}>CREDITS</span>
-                       <span className={`text-8xl font-display font-black italic tabular-nums ${isWinner ? 'text-amber-400' : 'text-white'}`}>
-                         {t.score}
-                       </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="mt-12 text-center">
-               <p className="text-slate-500 text-xs font-black uppercase tracking-[0.8em] animate-pulse">Global Sync Frequency: 1.5s</p>
-            </div>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+  // Determine view mode to simplify rendering
+  const isIdle = !session.currentQuestionId;
+  const isQuestionActive = session.status === QuizStatus.PREVIEW || session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED;
+  const isResult = session.status === QuizStatus.REVEALED;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans overflow-hidden selection:bg-indigo-500 selection:text-white">
-      {/* Background Ambience */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full animate-float" />
-         <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/5 blur-[150px] rounded-full [animation-delay:2s] animate-float" />
-      </div>
-
-      <div className="flex-grow relative z-10 flex items-center justify-center p-12 pb-40">
-        {renderContent()}
-      </div>
+    <div className="min-h-screen bg-slate-950 flex font-sans overflow-hidden selection:bg-indigo-500 selection:text-white relative">
       
-      <div className="fixed bottom-40 left-16 z-50">
-        <AIHostAvatar isSpeaking={isSpeaking} commentary={commentary} />
+      {/* Background Ambience */}
+      <div className="absolute inset-0 pointer-events-none">
+         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full animate-pulse" />
+         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 blur-[150px] rounded-full animate-pulse" />
+         <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)]" />
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-2xl border-t-8 border-slate-950 p-12 px-28 flex justify-between items-center z-50 shadow-[0_-20px_50px_rgba(0,0,0,0.05)]">
-        <div className="flex items-center gap-10">
-          <div className="bg-slate-950 p-6 rounded-[2rem] shadow-2xl ring-8 ring-indigo-500/10 group overflow-hidden relative">
-            <div className="absolute inset-0 animate-shimmer opacity-20" />
-            <BrainCircuit className="w-14 h-14 text-white relative z-10" />
-          </div>
-          <div className="flex flex-col">
-            <span className="text-xs font-black text-slate-400 uppercase tracking-[0.4em] mb-1">Neural Core Status</span>
-            <span className="font-display font-black text-6xl tracking-tighter text-slate-950 uppercase italic">DUK AI</span>
-          </div>
-        </div>
+      {/* Main Layout Grid */}
+      <div className="relative z-10 w-full h-screen grid grid-cols-12 gap-8 p-8">
         
-        <div className="flex items-center gap-16">
-           <div className="flex flex-col items-center gap-3">
-             <div className="flex items-center gap-6 bg-slate-100 px-10 py-5 rounded-[2rem] border-2 border-slate-200 shadow-sm">
-               <div className="w-5 h-5 rounded-full bg-emerald-500 animate-pulse ring-4 ring-emerald-500/20" />
-               <span className="font-black text-slate-950 uppercase tracking-[0.3em] text-xl italic">GRID SYNCED</span>
-             </div>
-             <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Aura Protocol 3.1.28-Stable</p>
-           </div>
+        {/* Left Column: AI Avatar (Always visible, Hero focus) */}
+        <div className={`col-span-5 flex flex-col items-center justify-center transition-all duration-1000 ${isIdle ? 'col-span-12 scale-125' : ''}`}>
+           <AIHostAvatar size="xl" isSpeaking={isSpeaking} commentary={commentary} />
         </div>
+
+        {/* Right Column: Content Overlay */}
+        {!isIdle && (
+          <div className="col-span-7 flex flex-col justify-center h-full animate-in slide-in-from-right duration-700">
+             
+             {isQuestionActive && (
+               <div className="space-y-8">
+                  {/* Header Status */}
+                  <div className="flex justify-between items-center">
+                    <Badge color={currentQuestion?.roundType === 'BUZZER' ? 'amber' : 'blue'}>
+                       {currentQuestion?.roundType} ROUND
+                    </Badge>
+                    <div className="text-right">
+                       <p className="text-indigo-400 text-xs font-black uppercase tracking-widest">Potential Value</p>
+                       <p className="text-4xl font-black text-white italic tracking-tighter">{currentQuestion?.points} <span className="text-lg text-slate-500">CR</span></p>
+                    </div>
+                  </div>
+
+                  {/* Question Card */}
+                  <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-[3rem] shadow-2xl relative overflow-hidden group">
+                     {session.status === QuizStatus.LOCKED && (
+                        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-20 animate-in fade-in">
+                           <div className="text-center">
+                              <LockIcon className="w-16 h-16 text-indigo-400 mx-auto mb-4 animate-bounce" />
+                              <h3 className="text-4xl font-black text-white uppercase italic tracking-widest">LOCKED</h3>
+                           </div>
+                        </div>
+                     )}
+                     
+                     <h2 className="text-4xl md:text-5xl font-black text-white leading-tight mb-8 drop-shadow-lg">
+                        {currentQuestion?.text}
+                     </h2>
+
+                     <div className="grid grid-cols-1 gap-4">
+                        {currentQuestion?.options.map((opt, i) => (
+                           <div key={i} className="flex items-center gap-6 p-4 rounded-2xl border border-white/5 bg-white/5">
+                              <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-xl font-bold text-white shadow-lg">
+                                 {String.fromCharCode(65+i)}
+                              </div>
+                              <span className="text-2xl font-bold text-slate-200">{opt}</span>
+                           </div>
+                        ))}
+                     </div>
+                  </div>
+
+                  {/* Footer Info */}
+                  <div className="flex items-center justify-between">
+                     {currentQuestion?.roundType === 'STANDARD' && (
+                        <div className="flex items-center gap-4">
+                           <div className="p-4 bg-slate-800 rounded-2xl border border-slate-700">
+                              <Timer seconds={turnTimeLeft} max={30} />
+                              <p className="text-center text-xs font-black text-slate-400 uppercase tracking-widest mt-2">{turnTimeLeft}s REMAINING</p>
+                           </div>
+                           {activeTeam && (
+                              <div className="text-left">
+                                 <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest">Current Turn</p>
+                                 <p className="text-2xl font-black text-white uppercase">{activeTeam.name}</p>
+                              </div>
+                           )}
+                        </div>
+                     )}
+                  </div>
+               </div>
+             )}
+
+             {isResult && (
+                <div className="space-y-8 animate-in zoom-in duration-500">
+                   <div className="bg-emerald-500/10 border border-emerald-500/30 p-12 rounded-[3rem] text-center relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-8 opacity-20"><CheckCircle2 className="w-32 h-32 text-emerald-500" /></div>
+                      <h2 className="text-3xl text-emerald-400 font-black uppercase tracking-widest mb-4">Correct Answer</h2>
+                      <p className="text-5xl font-black text-white leading-tight">{currentQuestion?.options[currentQuestion.correctAnswer]}</p>
+                   </div>
+                   
+                   <div className="bg-slate-900/80 backdrop-blur-md p-8 rounded-[2.5rem] border border-white/10">
+                      <h3 className="text-slate-400 font-black uppercase tracking-widest mb-6 flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-500" /> Leaderboard Update</h3>
+                      <div className="space-y-4">
+                         {[...session.teams].sort((a,b) => b.score - a.score).map((t, i) => (
+                            <div key={t.id} className={`flex items-center justify-between p-4 rounded-2xl ${i===0 ? 'bg-indigo-600/20 border border-indigo-500/30' : 'bg-white/5'}`}>
+                               <div className="flex items-center gap-4">
+                                  <span className={`text-xl font-black ${i===0 ? 'text-amber-400' : 'text-slate-500'}`}>0{i+1}</span>
+                                  <span className="text-xl font-bold text-white uppercase">{t.name}</span>
+                               </div>
+                               <span className="text-2xl font-black text-white font-mono">{t.score}</span>
+                            </div>
+                         ))}
+                      </div>
+                   </div>
+                </div>
+             )}
+          </div>
+        )}
       </div>
     </div>
   );

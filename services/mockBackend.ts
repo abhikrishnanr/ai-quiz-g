@@ -2,7 +2,9 @@
 import { QuizSession, QuizStatus, Team, Submission, Question } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 
-let session: QuizSession = {
+const STORAGE_KEY = 'DUK_QUIZ_SESSION_V1';
+
+const DEFAULT_SESSION: QuizSession = {
   id: 'session-123',
   currentQuestionId: null,
   status: QuizStatus.PREVIEW,
@@ -18,10 +20,31 @@ let session: QuizSession = {
   passCount: 0
 };
 
-const passTurnInternal = () => {
+// Helper to load/save from localStorage
+const loadSession = (): QuizSession => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error("Failed to load session", e);
+  }
+  return DEFAULT_SESSION;
+};
+
+const saveSession = (session: QuizSession) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  } catch (e) {
+    console.error("Failed to save session", e);
+  }
+};
+
+const passTurnInternal = (session: QuizSession) => {
   if (!session.activeTeamId) return;
   
-  // Award 10 points for passing (as requested)
+  // Award 10 points for passing
   const passingTeam = session.teams.find(t => t.id === session.activeTeamId);
   if (passingTeam) {
     passingTeam.score += 10;
@@ -33,16 +56,14 @@ const passTurnInternal = () => {
   session.activeTeamId = session.teams[nextIndex].id;
   session.turnStartTime = Date.now();
   session.passCount++;
-
-  // If we've circled back to everyone and no one answered, we might want to lock
-  if (session.passCount >= session.teams.length) {
-    // Optionally auto-lock if everyone passes? For now, just keep circling.
-  }
 };
 
 export const QuizService = {
   getSession: async (): Promise<QuizSession> => {
-    // Check for Auto-Pass in Standard rounds
+    let session = loadSession();
+
+    // Check for Auto-Pass in Standard rounds (Simulated time-based logic)
+    // Only trigger this if we are in a 'driver' context or just lazily update on read
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
     if (
       session.status === QuizStatus.LIVE && 
@@ -51,22 +72,26 @@ export const QuizService = {
     ) {
       const elapsed = (Date.now() - session.turnStartTime) / 1000;
       if (elapsed >= 30) {
-        passTurnInternal();
+        passTurnInternal(session);
+        saveSession(session);
       }
     }
-    return { ...session };
+    return session;
   },
 
   updateStatus: async (status: QuizStatus): Promise<QuizSession> => {
+    let session = loadSession();
     session.status = status;
     if (status === QuizStatus.LIVE) {
       session.startTime = Date.now();
       session.turnStartTime = Date.now();
     }
-    return { ...session };
+    saveSession(session);
+    return session;
   },
 
   setQuestion: async (questionId: string): Promise<QuizSession> => {
+    let session = loadSession();
     const question = MOCK_QUESTIONS.find(q => q.id === questionId);
     session.currentQuestionId = questionId;
     session.status = QuizStatus.PREVIEW;
@@ -75,20 +100,22 @@ export const QuizService = {
     
     if (question) {
       session.scoringMode = question.roundType === 'BUZZER' ? 'FIRST_RESPONSE' : 'STANDARD';
-      // In Standard, first team in list starts
       session.activeTeamId = question.roundType === 'STANDARD' ? session.teams[0].id : null;
     }
     
-    return { ...session };
+    saveSession(session);
+    return session;
   },
 
   submitAnswer: async (teamId: string, questionId: string, answer?: number, type: 'ANSWER' | 'PASS' = 'ANSWER'): Promise<Submission> => {
+    let session = loadSession();
     const question = MOCK_QUESTIONS.find(q => q.id === questionId);
     
     if (type === 'PASS') {
       if (session.activeTeamId === teamId) {
-        passTurnInternal();
+        passTurnInternal(session);
       }
+      saveSession(session);
       return { teamId, questionId, type, timestamp: Date.now() };
     }
 
@@ -107,68 +134,68 @@ export const QuizService = {
        if (!exists) {
           session.submissions.push(submission);
           
-          // In standard, if they answer (correct or wrong), the turn usually ends or moves.
-          // For this specific logic: if correct, they get points on reveal.
-          // If they answer, we automatically LOCK to prevent others from sniping in their turn.
           if (question?.roundType === 'STANDARD' && teamId === session.activeTeamId) {
             session.status = QuizStatus.LOCKED;
           }
        }
     }
     
+    saveSession(session);
     return submission;
   },
 
   revealAndScore: async (): Promise<QuizSession> => {
+    let session = loadSession();
     session.status = QuizStatus.REVEALED;
     const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session.currentQuestionId);
-    if (!currentQuestion) return session;
+    if (!currentQuestion) {
+        saveSession(session);
+        return session;
+    }
 
     if (currentQuestion.roundType === 'BUZZER') {
       const sortedSubmissions = [...session.submissions].sort((a, b) => a.timestamp - b.timestamp);
-      
+      let winnerFound = false;
+
       for (const sub of sortedSubmissions) {
         const team = session.teams.find(t => t.id === sub.teamId);
         if (!team) continue;
 
-        if (sub.isCorrect) {
+        if (sub.isCorrect && !winnerFound) {
           team.score += currentQuestion.points;
-          break; // Found winner
-        } else {
-          // Sequential penalty logic: reduce 50 from this team and move to next in buffer
+          winnerFound = true;
+        } else if (!sub.isCorrect) {
           team.score -= 50;
         }
       }
     } else {
-      // Standard scoring
       session.submissions.forEach(sub => {
         const team = session.teams.find(t => t.id === sub.teamId);
-        if (!team && sub.type !== 'ANSWER') return;
-        if (team && sub.isCorrect) {
+        if (!team || sub.type === 'PASS') return;
+        if (sub.isCorrect) {
           team.score += currentQuestion.points;
         }
       });
     }
 
-    return { ...session };
+    saveSession(session);
+    return session;
   },
 
   resetSession: async (): Promise<QuizSession> => {
+    let session = loadSession();
     session = {
-      ...session,
-      currentQuestionId: null,
-      status: QuizStatus.PREVIEW,
-      submissions: [],
-      activeTeamId: null,
-      turnStartTime: 0,
-      passCount: 0,
+      ...DEFAULT_SESSION,
       teams: session.teams.map(t => ({ ...t, score: 0 }))
     };
-    return { ...session };
+    saveSession(session);
+    return session;
   },
 
   forcePass: async (): Promise<QuizSession> => {
-    passTurnInternal();
-    return { ...session };
+    let session = loadSession();
+    passTurnInternal(session);
+    saveSession(session);
+    return session;
   }
 };
