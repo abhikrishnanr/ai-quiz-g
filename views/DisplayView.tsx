@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { QuizStatus } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 import { Timer, Badge } from '../components/SharedUI';
-import { Trophy, BrainCircuit, Star, Zap, Layers, UserCheck, CheckCircle2, Lock as LockIcon, TrendingUp } from 'lucide-react';
+import { Trophy, CheckCircle2, Lock as LockIcon } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 // Audio decoding helpers
@@ -33,11 +33,17 @@ const DisplayView: React.FC = () => {
   const [turnTimeLeft, setTurnTimeLeft] = useState(30);
   const [commentary, setCommentary] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const lastState = useRef<string>("");
+  
+  // State tracking for event triggers
+  const lastQuestionIdRef = useRef<string | null>(null);
+  const lastSubmissionCountRef = useRef<number>(0);
+  const lastStatusRef = useRef<QuizStatus | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
 
+  // Timer Logic
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && session.turnStartTime) {
       const interval = setInterval(() => {
@@ -49,13 +55,19 @@ const DisplayView: React.FC = () => {
     }
   }, [session?.status, session?.turnStartTime, currentQuestion]);
 
-  const playAuraSpeech = async (text: string) => {
+  const playAuraSpeech = async (text: string, isCommentary: boolean = true) => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
     }
     const ctx = audioContextRef.current;
     
-    setCommentary(text);
+    // Stop any currently playing audio
+    if (activeSourceRef.current) {
+      try { activeSourceRef.current.stop(); } catch (e) {}
+    }
+
+    if (isCommentary) setCommentary(text);
+    
     const audioBase64 = await API.generateAuraAudio(text);
     
     if (audioBase64) {
@@ -64,49 +76,75 @@ const DisplayView: React.FC = () => {
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
+      activeSourceRef.current = source;
+      
       source.onended = () => {
         setIsSpeaking(false);
-        setTimeout(() => setCommentary(""), 3000);
+        if (isCommentary) setTimeout(() => setCommentary(""), 3000);
       };
       source.start();
     } else {
-      // Fallback simulation if API key missing or fails
+      // Fallback if API fails
       setIsSpeaking(true);
       setTimeout(() => {
-        setIsSpeaking(false);
-        setTimeout(() => setCommentary(""), 5000);
+         setIsSpeaking(false);
+         if (isCommentary) setCommentary("");
       }, 3000);
     }
   };
 
+  // --- Voice Event Triggers ---
   useEffect(() => {
     if (!session) return;
-    const currentStateStr = `${session.status}-${session.currentQuestionId}-${session.activeTeamId}`;
-    if (currentStateStr !== lastState.current) {
-      lastState.current = currentStateStr;
-      
-      const fetchAndSpeak = async () => {
-        if (!session.currentQuestionId) return; 
 
-        // Don't comment on every single tick, just status changes
-        const teamName = session.activeTeamId ? session.teams.find(t => t.id === session.activeTeamId)?.name : '';
-        const insight = await API.getAIHostInsight(
-          session.status, 
-          currentQuestion?.text,
-          teamName ? `The hot seat belongs to ${teamName}.` : undefined
-        );
-        playAuraSpeech(insight);
-      };
-
-      fetchAndSpeak();
+    // 1. New Question Detected -> Read Question
+    if (session.currentQuestionId !== lastQuestionIdRef.current) {
+       if (session.currentQuestionId && currentQuestion) {
+          // Speak the question text clearly
+          playAuraSpeech(`Question: ${currentQuestion.text}`, false);
+       }
+       lastQuestionIdRef.current = session.currentQuestionId;
+       // Reset submission count for new question
+       lastSubmissionCountRef.current = 0;
     }
-  }, [session?.status, session?.currentQuestionId, session?.activeTeamId]);
+
+    // 2. New Submission in Standard Mode -> "Locked by [Team]"
+    if (session.submissions.length > lastSubmissionCountRef.current) {
+       const newSub = session.submissions[session.submissions.length - 1];
+       const team = session.teams.find(t => t.id === newSub.teamId);
+       
+       if (team && currentQuestion?.roundType === 'STANDARD') {
+          playAuraSpeech(`Answer locked by team ${team.name}.`, false);
+       }
+       lastSubmissionCountRef.current = session.submissions.length;
+    }
+
+    // 3. Status Changed to REVEALED -> Announce Result
+    if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
+       const processResult = async () => {
+         // Determine context for the AI
+         const lastSub = session.submissions[session.submissions.length - 1];
+         let context = "No answer submitted.";
+         if (lastSub) {
+            const team = session.teams.find(t => t.id === lastSub.teamId);
+            const isCorrect = lastSub.isCorrect;
+            context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. The answer was ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
+         }
+         
+         // Get witty commentary
+         const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
+         playAuraSpeech(insight, true);
+       };
+       processResult();
+    }
+
+    lastStatusRef.current = session.status;
+
+  }, [session?.status, session?.currentQuestionId, session?.submissions.length, session?.id]); // Re-run on these changes
 
   if (loading || !session) return null;
 
   const activeTeam = session.teams.find(t => t.id === session.activeTeamId);
-
-  // Determine view mode to simplify rendering
   const isIdle = !session.currentQuestionId;
   const isQuestionActive = session.status === QuizStatus.PREVIEW || session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED;
   const isResult = session.status === QuizStatus.REVEALED;
