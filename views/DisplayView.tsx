@@ -37,7 +37,7 @@ const DisplayView: React.FC = () => {
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [timerStartAt, setTimerStartAt] = useState<number | null>(null);
   
-  // Refs for tracking changes
+  // Refs
   const lastQuestionIdRef = useRef<string | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
   const lastStatusRef = useRef<QuizStatus | null>(null);
@@ -45,20 +45,16 @@ const DisplayView: React.FC = () => {
   const hasPlayedWarningRef = useRef<boolean>(false);
   const teamsAudioCachedRef = useRef<Set<string>>(new Set());
   
-  // Audio System Refs
+  // Audio Refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   
-  /**
-   * Aggressive Audio Cache
-   * Stores Base64 audio strings mapped by event keys
-   */
+  // Local Memory Cache (syncs with Persistent cache in API)
   const audioCacheRef = useRef<Record<string, string>>({});
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
   const activeTeam = session?.teams.find(t => t.id === session.activeTeamId);
 
-  // Initialize Audio Context
   const initAudio = () => {
     if (!audioContextRef.current) {
       audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
@@ -69,8 +65,6 @@ const DisplayView: React.FC = () => {
     SFX.init();
     SFX.playIntro();
     setAudioInitialized(true);
-    
-    // Pre-fetch general clips immediately
     preloadGeneralClips();
   };
 
@@ -80,77 +74,57 @@ const DisplayView: React.FC = () => {
         { key: 'generic_correct', text: HOST_SCRIPTS.GENERIC_CORRECT },
         { key: 'generic_wrong', text: HOST_SCRIPTS.GENERIC_WRONG },
     ];
-
     for (const clip of clips) {
-        if (!audioCacheRef.current[clip.key]) {
-            const audio = await API.getTTSAudio(clip.text);
-            if (audio) audioCacheRef.current[clip.key] = audio;
-        }
+        // API.getTTSAudio handles the queue and persistence now
+        const audio = await API.getTTSAudio(clip.text);
+        if (audio) audioCacheRef.current[clip.key] = audio;
     }
   };
 
-  // --- Pre-Fetching Logic --- //
+  // --- Pre-Fetching --- //
 
-  // 1. Static Team Clips (Locked/Passing) - Generate ONCE per session/team, not per question
+  // 1. Teams
   useEffect(() => {
      if (!session?.teams) return;
-
      session.teams.forEach(async (team) => {
         if (!teamsAudioCachedRef.current.has(team.id)) {
-            // Mark as processing immediately to avoid duplicates
             teamsAudioCachedRef.current.add(team.id);
-
-            // Fetch "Locked"
-            const lockText = `Answer locked by ${team.name}.`;
-            const lockAudio = await API.getTTSAudio(lockText);
+            const lockAudio = await API.getTTSAudio(`Answer locked by ${team.name}.`);
             if (lockAudio) audioCacheRef.current[`locked_${team.id}`] = lockAudio;
-
-            // Fetch "Passing"
-            const passText = `Passing to ${team.name}.`;
-            const passAudio = await API.getTTSAudio(passText);
+            const passAudio = await API.getTTSAudio(`Passing to ${team.name}.`);
             if (passAudio) audioCacheRef.current[`pass_${team.id}`] = passAudio;
         }
      });
   }, [session?.teams]);
 
-
-  // 2. Question Specific Audio - Run when question changes
+  // 2. Question Audio (Unique per ID)
   useEffect(() => {
-    if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
+    if (session?.status === QuizStatus.PREVIEW && currentQuestion) {
+        const uniqueKey = `read_${currentQuestion.id}`;
         
-        // CRITICAL FIX: Explicitly delete the old question reading audio
-        // This ensures we don't replay the previous question
-        delete audioCacheRef.current['question_read'];
-        
-        // Clear old result cache
-        Object.keys(audioCacheRef.current).forEach(key => {
-            if (key.startsWith('result_')) delete audioCacheRef.current[key];
-        });
-
-        // Cache Question Reading
-        const prepareQuestionAudio = async () => {
-            const startingTeam = session.teams.find(t => t.id === session.activeTeamId); 
-            const textToRead = API.formatQuestionForSpeech(currentQuestion, startingTeam?.name);
-            const audio = await API.getTTSAudio(textToRead);
-            if (audio) audioCacheRef.current['question_read'] = audio;
-        };
-
-        prepareQuestionAudio();
+        // Only fetch if we haven't already
+        if (!audioCacheRef.current[uniqueKey]) {
+            const prepareQuestionAudio = async () => {
+                const startingTeam = session.teams.find(t => t.id === session.activeTeamId); 
+                const textToRead = API.formatQuestionForSpeech(currentQuestion, startingTeam?.name);
+                const audio = await API.getTTSAudio(textToRead);
+                if (audio) audioCacheRef.current[uniqueKey] = audio;
+            };
+            prepareQuestionAudio();
+        }
     }
   }, [session?.status, session?.currentQuestionId, currentQuestion, session?.teams]);
 
-
-  // 3. Pre-fetch Result Audio (Lazy load when locked)
+  // 3. Result Audio
   useEffect(() => {
     if (!session || !currentQuestion) return;
-
     const prepareResultAudio = async () => {
         const lastSub = session.submissions[session.submissions.length - 1];
-        const cacheKey = lastSub 
+        const uniqueKey = lastSub 
             ? `result_${lastSub.teamId}_${lastSub.timestamp}` 
             : `result_nosub_${currentQuestion.id}`;
 
-        if (audioCacheRef.current[cacheKey]) return;
+        if (audioCacheRef.current[uniqueKey]) return;
         
         let context = "";
         let text = "";
@@ -162,32 +136,26 @@ const DisplayView: React.FC = () => {
              context = `No answer received. The correct answer is ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
         }
         
-        // This is the only dynamic generation that uses the LLM (for variety)
         text = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion.text, context);
         const audio = await API.getTTSAudio(text);
         if (audio) {
-            audioCacheRef.current[cacheKey] = audio;
-            audioCacheRef.current[cacheKey + '_text'] = text; 
+            audioCacheRef.current[uniqueKey] = audio;
+            audioCacheRef.current[uniqueKey + '_text'] = text; 
         }
     };
-    
     if (session.status === QuizStatus.LOCKED || session.status === QuizStatus.LIVE) {
         prepareResultAudio();
     }
   }, [session?.submissions, session?.status, currentQuestion]);
 
-
-  // --- Playback Logic --- //
+  // --- Playback --- //
 
   const playAudio = async (base64Data: string, text?: string, onEnd?: () => void) => {
     if (!audioContextRef.current) return;
     const ctx = audioContextRef.current;
-
-    // Stop current speech instantly to allow interruption (host style)
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop(); } catch(e) {}
     }
-
     if (text) setCommentary(text);
     setIsSpeaking(true);
 
@@ -197,7 +165,6 @@ const DisplayView: React.FC = () => {
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
         activeSourceRef.current = source;
-
         source.onended = () => {
             setIsSpeaking(false);
             if (text) setTimeout(() => setCommentary(""), 2000);
@@ -219,22 +186,22 @@ const DisplayView: React.FC = () => {
      return false;
   };
 
-
   // --- Event Handling --- //
 
   useEffect(() => {
     if (!session) return;
 
-    // A. Status Change: PREVIEW -> LIVE (Read Question)
+    // PREVIEW -> LIVE (Read Question)
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        hasPlayedWarningRef.current = false;
        
-       // Play cached question audio
-       if (!playFromCache('question_read', undefined, () => {
+       const uniqueKey = `read_${currentQuestion?.id}`;
+       
+       if (!playFromCache(uniqueKey, undefined, () => {
            if (session.isReading) API.completeReading();
        })) {
-           // Fallback if not cached (shouldn't happen with proper preview time)
+           // Fallback
            const text = API.formatQuestionForSpeech(currentQuestion!, activeTeam?.name);
            API.getTTSAudio(text).then(audio => {
                if (audio) playAudio(audio, undefined, () => API.completeReading());
@@ -243,11 +210,10 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // B. Submission Received -> Locked Announcement
+    // Submission Locked
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
-       
        if (team) {
            SFX.playLock();
            const played = playFromCache(`locked_${team.id}`, `Locked by ${team.name}`);
@@ -258,42 +224,30 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // C. Team Pass (Standard Round) -> Pass Announcement
-    if (
-        session.status === QuizStatus.LIVE && 
-        session.activeTeamId !== lastActiveTeamIdRef.current && 
-        lastActiveTeamIdRef.current !== null
-    ) {
-        if (activeTeam) {
-            playFromCache(`pass_${activeTeam.id}`, `Passing to ${activeTeam.name}`);
-        }
+    // Passing
+    if (session.status === QuizStatus.LIVE && session.activeTeamId !== lastActiveTeamIdRef.current && lastActiveTeamIdRef.current !== null) {
+        if (activeTeam) playFromCache(`pass_${activeTeam.id}`, `Passing to ${activeTeam.name}`);
     }
 
-    // D. REVEALED -> Result Commentary (Robust Fallback)
+    // Result Revealed
     if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
        const lastSub = session.submissions[session.submissions.length - 1];
        const isCorrect = lastSub ? !!lastSub.isCorrect : false;
-       
-       if (isCorrect) SFX.playCorrect();
-       else SFX.playWrong();
+       if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
 
-       const cacheKey = lastSub 
+       const uniqueKey = lastSub 
             ? `result_${lastSub.teamId}_${lastSub.timestamp}` 
             : `result_nosub_${currentQuestion?.id}`;
        
-       const specificText = audioCacheRef.current[cacheKey + '_text'];
+       const specificText = audioCacheRef.current[uniqueKey + '_text'];
        
-       // 1. Try to play the specifically pre-generated commentary
-       if (audioCacheRef.current[cacheKey]) {
-            playFromCache(cacheKey, specificText);
+       if (audioCacheRef.current[uniqueKey]) {
+            playFromCache(uniqueKey, specificText);
        } else {
-           // 2. Fallback: Cache Miss (Too fast?) -> Play Generic immediately, then generate explanation
            const genericKey = isCorrect ? 'generic_correct' : 'generic_wrong';
            const genericText = isCorrect ? HOST_SCRIPTS.GENERIC_CORRECT : HOST_SCRIPTS.GENERIC_WRONG;
            
-           // Play generic clip immediately (Zero Latency)
            playFromCache(genericKey, genericText, async () => {
-                // After generic clip ends, generate the specific explanation
                 let context = "No answer.";
                 if (lastSub) {
                     const team = session.teams.find(t => t.id === lastSub.teamId);
@@ -301,15 +255,11 @@ const DisplayView: React.FC = () => {
                 }
                 const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
                 const audio = await API.getTTSAudio(insight);
-                if (audio) {
-                    // Slight pause before explanation feels natural
-                    setTimeout(() => playAudio(audio, insight), 300);
-                }
+                if (audio) setTimeout(() => playAudio(audio, insight), 300);
            });
        }
     }
 
-    // Update Refs
     lastStatusRef.current = session.status;
     lastSubmissionCountRef.current = session.submissions.length;
     lastActiveTeamIdRef.current = session.activeTeamId;
@@ -321,55 +271,38 @@ const DisplayView: React.FC = () => {
   }, [session?.status, session?.submissions.length, session?.activeTeamId, session?.id]);
 
 
-  // --- Timer Logic & Audio Warning --- //
+  // --- Timer --- //
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
       if (session.isReading) {
           setTurnTimeLeft(30);
           return;
       }
-      
-      if (!timerStartAt) {
-          setTimerStartAt(session.turnStartTime || Date.now());
-      }
+      if (!timerStartAt) setTimerStartAt(session.turnStartTime || Date.now());
       
       const interval = setInterval(() => {
         const startTime = session.turnStartTime || timerStartAt || Date.now();
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
         const remaining = Math.max(0, 30 - elapsed);
         setTurnTimeLeft(remaining);
-        
-        // Timer Tick SFX
-        if (remaining <= 5 && remaining > 0) {
-            SFX.playTimerTick();
-        }
-
-        // 10s Warning Voice
+        if (remaining <= 5 && remaining > 0) SFX.playTimerTick();
         if (remaining === 10 && !hasPlayedWarningRef.current) {
             hasPlayedWarningRef.current = true;
             playFromCache('warning_10s');
         }
-
       }, 200);
       return () => clearInterval(interval);
     } else {
-        if (session?.status !== QuizStatus.LIVE) {
-            setTimerStartAt(null);
-        }
+        if (session?.status !== QuizStatus.LIVE) setTimerStartAt(null);
     }
   }, [session?.status, currentQuestion, session?.isReading, session?.turnStartTime, timerStartAt]);
 
-
-  // --- Render --- //
-
   if (loading || !session) return null;
-
   const isIdle = !session.currentQuestionId;
   const isPreview = session.status === QuizStatus.PREVIEW;
   const isQuestionVisible = session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED || session.status === QuizStatus.REVEALED;
   const isResult = session.status === QuizStatus.REVEALED;
 
-  // Initialization Screen
   if (!audioInitialized) {
       return (
           <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center cursor-pointer" onClick={initAudio}>
@@ -387,23 +320,17 @@ const DisplayView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 flex font-sans overflow-hidden selection:bg-indigo-500 selection:text-white relative">
-      
-      {/* Background Ambience */}
       <div className="absolute inset-0 pointer-events-none">
          <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[150px] rounded-full animate-pulse" />
          <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-cyan-600/10 blur-[150px] rounded-full animate-pulse" />
          <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)]" />
       </div>
 
-      {/* Main Layout Grid */}
       <div className="relative z-10 w-full h-screen grid grid-cols-12 gap-8 p-8">
-        
-        {/* Left Column: AI Avatar */}
         <div className={`flex flex-col items-center justify-center transition-all duration-1000 ${
             isPreview || isIdle ? 'col-span-12 scale-150' : 'col-span-4 scale-100'
         }`}>
            <AIHostAvatar size="xl" isSpeaking={isSpeaking} commentary={commentary} />
-           
            {isPreview && currentQuestion && (
                <div className="mt-12 text-center animate-in fade-in slide-in-from-bottom duration-1000">
                    <Badge color="indigo">INCOMING SEQUENCE</Badge>
@@ -419,11 +346,9 @@ const DisplayView: React.FC = () => {
            )}
         </div>
 
-        {/* Right Column: Content Overlay */}
         {isQuestionVisible && (
           <div className="col-span-8 flex flex-col justify-center h-full animate-in slide-in-from-right duration-700 pl-8">
                <div className="space-y-8">
-                  {/* Header Status */}
                   <div className="flex justify-between items-center">
                     <Badge color={currentQuestion?.roundType === 'BUZZER' ? 'amber' : 'blue'}>
                        {currentQuestion?.roundType} ROUND
@@ -434,9 +359,7 @@ const DisplayView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Question Card */}
                   <div className="bg-white/5 backdrop-blur-xl border border-white/10 p-12 rounded-[3rem] shadow-2xl relative overflow-hidden group">
-                     {/* Lock Overlay for Reading Phase */}
                      {session.isReading && currentQuestion?.roundType === 'BUZZER' && (
                          <div className="absolute inset-0 bg-amber-950/80 backdrop-blur-sm flex items-center justify-center z-30 animate-in fade-in">
                            <div className="text-center">
@@ -490,7 +413,6 @@ const DisplayView: React.FC = () => {
                      </div>
                   </div>
 
-                  {/* Footer Info */}
                   <div className="flex items-center justify-between">
                      {currentQuestion?.roundType === 'STANDARD' && (
                         <div className="flex items-center gap-4">
