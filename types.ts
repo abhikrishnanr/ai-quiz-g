@@ -43,13 +43,13 @@ export interface QuizSession {
   currentQuestionId: string | null;
   status: QuizStatus;
   startTime?: number;
-  turnStartTime?: number; // Start time for the current team's turn
-  activeTeamId: string | null; // Currently active team in Standard round
-  passCount: number; // Number of times question was passed
+  turnStartTime?: number;
+  activeTeamId: string | null;
+  passCount: number;
   teams: Team[];
   submissions: Submission[];
   scoringMode: 'FIRST_RESPONSE' | 'STANDARD';
-  isReading?: boolean; // Indicates if the host is currently reading the question
+  isReading?: boolean;
 }
 
 export interface APIResponse<T> {
