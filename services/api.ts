@@ -1,5 +1,6 @@
 
 import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
+import { GoogleGenAI } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType } from '../types';
 import { QuizService } from './mockBackend';
 
@@ -13,7 +14,7 @@ const AWS_CONFIG = {
 const QUEUE_DELAY_MS = 500; 
 const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_AWS_POLLY';
 
-// --- AWS Client Initialization ---
+// --- Clients ---
 const pollyClient = new PollyClient({
   region: AWS_CONFIG.REGION,
   credentials: {
@@ -21,6 +22,8 @@ const pollyClient = new PollyClient({
     secretAccessKey: AWS_CONFIG.SECRET_KEY
   }
 });
+
+const genAI = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- Queue System ---
 type QueueItem = {
@@ -46,7 +49,6 @@ const getPersistentCache = (): Record<string, string> => {
 const saveToPersistentCache = (key: string, base64: string) => {
   try {
     const cache = getPersistentCache();
-    // Clear cache if it gets too big (approx 5MB)
     if (JSON.stringify(cache).length > 5 * 1024 * 1024) {
       localStorage.removeItem(STORAGE_KEY_TTS);
       return; 
@@ -58,7 +60,6 @@ const saveToPersistentCache = (key: string, base64: string) => {
   }
 };
 
-// Convert AWS Uint8Array to Base64
 const uint8ArrayToBase64 = (u8Arr: Uint8Array): string => {
   let chunk = "";
   const len = u8Arr.byteLength;
@@ -68,7 +69,6 @@ const uint8ArrayToBase64 = (u8Arr: Uint8Array): string => {
   return btoa(chunk);
 };
 
-// --- Queue Processor ---
 const processQueue = async () => {
   if (isProcessingQueue || requestQueue.length === 0) return;
   isProcessingQueue = true;
@@ -79,7 +79,7 @@ const processQueue = async () => {
     const command = new SynthesizeSpeechCommand({
       Text: text,
       OutputFormat: "mp3",
-      VoiceId: "Kajal", // Changed from Aditi to Kajal (Neural)
+      VoiceId: "Kajal", 
       Engine: "neural",
       TextType: isSSML ? "ssml" : "text"
     });
@@ -101,7 +101,6 @@ const processQueue = async () => {
     console.error("AWS Polly Error:", error);
     resolve(undefined);
   } finally {
-    // Small delay to ensure smooth processing order
     setTimeout(() => {
       isProcessingQueue = false;
       processQueue();
@@ -144,80 +143,55 @@ export const API = {
     return QuizService.completeReading();
   },
 
-  // Smart Template System (Logic-based instead of GenAI)
+  // Dynamic Host Commentary using Gemini
   getAIHostInsight: async (status: QuizStatus, questionText?: string, context?: string): Promise<string> => {
-    // Simulate thinking delay slightly
-    await new Promise(r => setTimeout(r, 100));
+    try {
+      const prompt = `
+        You are "Bodhini", a sophisticated and enthusiastic AI Quiz Master for a competitive event at Digital University Kerala.
+        Your personality is professional, slightly futuristic, intelligent, and encouraging.
+        
+        Current Quiz State: ${status}
+        ${questionText ? `Question Being Asked: "${questionText}"` : ""}
+        ${context ? `Event Context: ${context}` : ""}
+        
+        TASK:
+        Generate a short, snappy, and contextual comment (maximum 2 sentences).
+        - If the team was correct, start with an enthusiastic "shout" (e.g., "YES!", "ABSOLUTELY!", "SPOT ON!").
+        - If incorrect, be professional but empathetic.
+        - If previewing a question, build anticipation.
+        
+        Return ONLY the spoken text, formatted for high-quality TTS.
+        If the response is for a correct answer, wrap the "shout" part in <prosody volume="x-loud" pitch="+10%">...</prosody> and use a <break time="500ms"/> after it.
+        The entire response MUST be wrapped in <speak> tags for SSML processing.
+      `;
 
-    // 1. Result/Reveal Phase
-    if (status === QuizStatus.REVEALED && context) {
-        if (context.includes("Correct")) {
-            const shouts = [
-                "YES! THAT IS THE CORRECT ANSWER!",
-                "ABSOLUTELY RIGHT!",
-                "SPOT ON!",
-                "PRECISELY!",
-                "BOOM! YOU GOT IT!",
-                "CORRECT!"
-            ];
-            const compliments = [
-                "Incredible display of knowledge.",
-                "You are operating at maximum efficiency.",
-                "A stellar performance.",
-                "Your logic is undeniable.",
-                "Impressive cognitive processing."
-            ];
-            
-            const shout = shouts[Math.floor(Math.random() * shouts.length)];
-            const compliment = compliments[Math.floor(Math.random() * compliments.length)];
-            
-            // High energy delivery using SSML
-            return `<speak>
-              <prosody volume="x-loud" pitch="+10%">${shout}</prosody> 
-              <break time="500ms"/> 
-              <prosody volume="loud">${compliment}</prosody>
-            </speak>`;
+      const result = await genAI.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt
+      });
 
-        } else if (context.includes("Incorrect")) {
-            const losers = [
-                "I am afraid that is incorrect.",
-                "Not quite right.",
-                "That is a miss.",
-                "Incorrect response.",
-                "That is not the answer we were looking for."
-            ];
-            return losers[Math.floor(Math.random() * losers.length)];
-        } else if (context.includes("No answer")) {
-             return "Time has run out. Here is the answer.";
-        }
+      let text = result.text || "";
+      
+      // Safety: Ensure it's wrapped in speak tags if Gemini forgot
+      if (!text.includes('<speak>')) {
+        text = `<speak>${text}</speak>`;
+      }
+
+      return text;
+    } catch (err) {
+      console.error("Gemini Error:", err);
+      // Fallback
+      return `<speak>Processing sequence complete. Ready for next input.</speak>`;
     }
-
-    // 2. Reading Phase
-    if (status === QuizStatus.LIVE && questionText) {
-        return "Focus on the question.";
-    }
-
-    // 3. Locked Phase
-    if (status === QuizStatus.LOCKED) {
-        return "Response received. Stand by.";
-    }
-
-    // Default
-    return "System ready.";
   },
 
-  // AWS Polly TTS Wrapper
   getTTSAudio: async (text: string): Promise<string | undefined> => {
     const cacheKey = text.trim().toLowerCase();
-    
-    // 1. Check Persistent Storage First
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) {
       return persistentCache[cacheKey];
     }
 
-    // 2. Add to Queue
-    // Detect if text uses SSML tags
     const isSSML = text.includes('<speak>') || text.includes('<break');
 
     return new Promise((resolve) => {
@@ -226,25 +200,22 @@ export const API = {
     });
   },
 
-  // Alias for backward compatibility
   generateBodhiniAudio: async (text: string): Promise<string | undefined> => {
     return API.getTTSAudio(text);
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    // Using SSML for AWS Polly to control pacing and pauses
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)} <break time="200ms"/> ${opt}`).join('. <break time="600ms"/> ');
     
     let intro = "";
     if (question.roundType === 'BUZZER') {
-        intro = `Buzzer Round for ${question.points} credits. Hands on buttons. <break time="500ms"/> Here is the question.`;
+        intro = `Buzzer Round. ${question.difficulty} level for ${question.points} credits. Hands on buttons. <break time="500ms"/> Here is the question.`;
     } else {
         intro = activeTeamName 
-            ? `Standard Round. Question for ${activeTeamName}.` 
-            : "Standard Round.";
+            ? `Standard Round. ${question.difficulty} question for ${activeTeamName}.` 
+            : `Standard Round. ${question.difficulty} difficulty.`;
     }
 
-    // Wrap in <speak> tag for SSML processing
     return `<speak>${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> ${opts}</speak>`;
   }
 };

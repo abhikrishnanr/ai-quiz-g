@@ -20,49 +20,114 @@ export const HOST_SCRIPTS = {
 
 export const MOCK_QUESTIONS: Question[] = [
   {
-    id: 'q1',
-    text: 'What was the former name of Digital University Kerala before its upgrade to a full university?',
-    options: ['IIITM-K', 'C-DIT', 'KELTRON', 'Technopark'],
+    id: 'ai_1',
+    text: 'What does the acronym "AI" stand for in computer science?',
+    options: ['Artificial Intelligence', 'Automated Interface', 'Advanced Integration', 'Analytical Insight'],
     correctAnswer: 0,
-    points: 100,
+    points: 50,
     timeLimit: 30,
-    roundType: 'STANDARD'
+    roundType: 'STANDARD',
+    difficulty: 'EASY',
+    hint: 'It describes machines mimicking cognitive functions.'
   },
   {
-    id: 'q2',
-    text: 'In which specific innovation hub in Thiruvananthapuram is the main DUK campus located?',
-    options: ['Technopark Phase 1', 'Technocity (Pallippuram)', 'Kinfra Park', 'Cyberpark'],
+    id: 'ai_2',
+    text: 'Which British mathematician is often considered the father of theoretical computer science and AI?',
+    options: ['Isaac Newton', 'Alan Turing', 'Ada Lovelace', 'Charles Babbage'],
+    correctAnswer: 1,
+    points: 100,
+    timeLimit: 30,
+    roundType: 'STANDARD',
+    difficulty: 'EASY',
+    hint: 'He developed a famous "Test" for machine intelligence.'
+  },
+  {
+    id: 'ai_3',
+    text: 'What is the primary purpose of a "Neural Network" in Machine Learning?',
+    options: ['To manage database connections', 'To mimic the human brain to find patterns', 'To speed up internet connectivity', 'To encrypt user passwords'],
+    correctAnswer: 1,
+    points: 150,
+    timeLimit: 30,
+    roundType: 'BUZZER',
+    difficulty: 'MEDIUM',
+    hint: 'Think about how biological neurons connect and fire.'
+  },
+  {
+    id: 'ai_4',
+    text: 'In the context of LLMs, what does "GPT" stand for?',
+    options: ['General Program Technology', 'Global Positioning Tool', 'Generative Pre-trained Transformer', 'Graph Processing Template'],
+    correctAnswer: 2,
+    points: 150,
+    timeLimit: 30,
+    roundType: 'STANDARD',
+    difficulty: 'MEDIUM',
+    hint: 'Three words: It creates, it was taught beforehand, and it uses a specific architecture.'
+  },
+  {
+    id: 'ai_5',
+    text: 'Which IBM supercomputer famously defeated world chess champion Garry Kasparov in 1997?',
+    options: ['Watson', 'Deep Blue', 'AlphaGo', 'Siri'],
     correctAnswer: 1,
     points: 200,
     timeLimit: 30,
-    roundType: 'BUZZER'
+    roundType: 'BUZZER',
+    difficulty: 'MEDIUM',
+    hint: 'It is a color and a depth.'
   },
   {
-    id: 'q3',
-    text: 'Digital University Kerala was established by the Government of Kerala in which year?',
-    options: ['2018', '2019', '2020', '2021'],
+    id: 'ai_6',
+    text: 'What term describes an AI model making up false information and presenting it as fact?',
+    options: ['Debugging', 'Glitching', 'Hallucination', 'Phantom Data'],
     correctAnswer: 2,
-    points: 100,
-    timeLimit: 30,
-    roundType: 'STANDARD'
-  },
-  {
-    id: 'q4',
-    text: 'Who served as the first Vice Chancellor of Digital University Kerala?',
-    options: ['Dr. Saji Gopinath', 'Dr. K.M. Abraham', 'Dr. V.K. Ramachandran', 'Shri. P. Rajeeve'],
-    correctAnswer: 0,
     points: 200,
     timeLimit: 30,
-    roundType: 'BUZZER'
+    roundType: 'STANDARD',
+    difficulty: 'MEDIUM',
+    hint: 'It is a psychological term for seeing things that aren\'t there.'
   },
   {
-    id: 'q5',
-    text: 'Which of the following is NOT one of the primary schools within DUK?',
-    options: ['School of Computer Science', 'School of Digital Sciences', 'School of Electronic Systems', 'School of Marine Biology'],
-    correctAnswer: 3,
+    id: 'ai_7',
+    text: 'Who coined the "Three Laws of Robotics" in his science fiction stories?',
+    options: ['Isaac Asimov', 'Arthur C. Clarke', 'Philip K. Dick', 'Elon Musk'],
+    correctAnswer: 0,
     points: 150,
     timeLimit: 30,
-    roundType: 'STANDARD'
+    roundType: 'STANDARD',
+    difficulty: 'MEDIUM',
+    hint: 'A prolific science fiction writer who wrote "I, Robot".'
+  },
+  {
+    id: 'ai_8',
+    text: 'In Deep Learning, what is "Overfitting"?',
+    options: ['When a model is too large for the GPU', 'When a model performs well on training data but poorly on new data', 'When a model is perfectly balanced', 'When data is too diverse'],
+    correctAnswer: 1,
+    points: 300,
+    timeLimit: 30,
+    roundType: 'BUZZER',
+    difficulty: 'HARD',
+    hint: 'The model has memorized the noise rather than learning the signal.'
+  },
+  {
+    id: 'ai_9',
+    text: 'What is the significance of the "Attention Is All You Need" paper published in 2017?',
+    options: ['It introduced the Transformer architecture', 'It proved AI is dangerous', 'It solved the Traveling Salesman problem', 'It invented the Internet'],
+    correctAnswer: 0,
+    points: 400,
+    timeLimit: 30,
+    roundType: 'STANDARD',
+    difficulty: 'HARD',
+    hint: 'This architecture is the foundation of modern LLMs.'
+  },
+  {
+    id: 'ai_10',
+    text: 'What is the name of the AI developed by DeepMind that defeated the world champion in Go?',
+    options: ['AlphaGo', 'GoMaster', 'StrategyNet', 'DeepMind-1'],
+    correctAnswer: 0,
+    points: 250,
+    timeLimit: 30,
+    roundType: 'BUZZER',
+    difficulty: 'HARD',
+    hint: 'Uses "Alpha" as a prefix, similar to their other projects.'
   }
 ];
 

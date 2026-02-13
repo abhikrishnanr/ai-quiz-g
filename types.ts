@@ -8,6 +8,7 @@ export enum QuizStatus {
 
 export type RoundType = 'BUZZER' | 'STANDARD';
 export type SubmissionType = 'ANSWER' | 'PASS';
+export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 
 export interface Question {
   id: string;
@@ -17,6 +18,8 @@ export interface Question {
   points: number;
   timeLimit: number;
   roundType: RoundType;
+  difficulty: Difficulty;
+  hint: string;
 }
 
 export interface Team {

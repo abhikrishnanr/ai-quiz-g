@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { QuizStatus, SubmissionType } from '../types';
 import { MOCK_QUESTIONS } from '../constants';
 import { Badge, Card, Button } from '../components/SharedUI';
-import { CheckCircle2, AlertCircle, Clock, Zap, Forward, Lock as LockIcon, MessageSquare, User, LogOut, Volume2 } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Clock, Zap, Forward, Lock as LockIcon, MessageSquare, User, LogOut, Volume2, Sparkles } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 const TeamView: React.FC = () => {
@@ -14,6 +14,7 @@ const TeamView: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bodhiniInsight, setBodhiniInsight] = useState<string>("");
+  const [showHint, setShowHint] = useState(false);
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
   const mySubmission = session?.submissions.find(s => s.teamId === selectedTeam);
@@ -24,39 +25,33 @@ const TeamView: React.FC = () => {
     if (session?.status === QuizStatus.LIVE || session?.status === QuizStatus.PREVIEW) {
       const updateBodhini = async () => {
         const insight = await API.getAIHostInsight(session.status, currentQuestion?.text);
-        setBodhiniInsight(insight);
+        // Clean SSML for the subtitle box in Team view
+        const cleanInsight = insight.replace(/<[^>]*>/g, '').trim();
+        setBodhiniInsight(cleanInsight);
       };
       updateBodhini();
     }
     if (session?.status === QuizStatus.PREVIEW) {
       setSelectedAnswer(null);
+      setShowHint(false);
     }
   }, [session?.currentQuestionId, session?.status]);
 
   if (loading || !session) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"/></div>;
 
-  // Login Screen
   if (!selectedTeam) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#1e1b4b_0%,transparent_50%)]" />
-        
-        <div className="relative z-10 w-full max-w-md">
-          <div className="mb-12 text-center">
+        <div className="relative z-10 w-full max-w-md text-center">
              <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-[2rem] flex items-center justify-center mx-auto mb-8 border border-white/10 shadow-2xl">
                 <User className="w-10 h-10 text-indigo-400" />
              </div>
              <h1 className="text-4xl font-black text-white uppercase tracking-tighter mb-2 font-display">Identity Uplink</h1>
-             <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Connect to Neural Cluster</p>
-          </div>
-
+             <p className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-12">Connect to Neural Cluster</p>
           <div className="space-y-4">
             {session.teams.map(t => (
-              <button 
-                key={t.id} 
-                onClick={() => { setSelectedTeam(t.id); localStorage.setItem('duk_team_id', t.id); }} 
-                className="w-full p-6 text-left bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl flex items-center justify-between group transition-all active:scale-[0.98]"
-              >
+              <button key={t.id} onClick={() => { setSelectedTeam(t.id); localStorage.setItem('duk_team_id', t.id); }} className="w-full p-6 text-left bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-2xl flex items-center justify-between group transition-all active:scale-[0.98]">
                 <span className="text-xl font-black tracking-tight">{t.name}</span>
                 <div className="w-8 h-8 rounded-full bg-indigo-600/20 flex items-center justify-center group-hover:bg-indigo-600 transition-colors">
                   <Forward className="w-4 h-4 text-indigo-400 group-hover:text-white" />
@@ -72,7 +67,6 @@ const TeamView: React.FC = () => {
   const handleSubmit = async (type: SubmissionType = 'ANSWER') => {
     if (type === 'ANSWER' && selectedAnswer === null) return;
     if (isSubmitting || !selectedTeam || !session.currentQuestionId) return;
-    
     setIsSubmitting(true);
     try {
       await API.submitTeamAnswer(selectedTeam, session.currentQuestionId, selectedAnswer ?? undefined, type);
@@ -119,7 +113,6 @@ const TeamView: React.FC = () => {
 
     if (session.status === QuizStatus.LIVE) {
       const isBuzzer = currentQuestion?.roundType === 'BUZZER';
-      // Strict locking for buzzer rounds during reading
       const isReadingLocked = isBuzzer && session.isReading;
       const canInteract = (isBuzzer || isMyTurn) && !isReadingLocked;
 
@@ -140,7 +133,6 @@ const TeamView: React.FC = () => {
 
       return (
         <div className="space-y-6 animate-in slide-in-from-bottom duration-500 pb-24">
-           {/* Status Banner */}
            <div className={`p-5 rounded-3xl flex justify-between items-center shadow-lg text-white ${isBuzzer ? 'bg-gradient-to-r from-amber-500 to-orange-500' : 'bg-gradient-to-r from-indigo-600 to-violet-600'}`}>
               <div className="flex items-center gap-3">
                  <div className="p-2 bg-white/20 rounded-xl">
@@ -171,32 +163,33 @@ const TeamView: React.FC = () => {
                  <h2 className="text-xl md:text-2xl font-bold text-slate-800 leading-snug">{currentQuestion?.text}</h2>
                </Card>
 
+               {/* Hint Trigger */}
+               <div className="relative">
+                  {showHint ? (
+                    <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl animate-in zoom-in duration-300">
+                       <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1 flex items-center gap-1">
+                          <Sparkles className="w-3 h-3" /> Bodhini Suggestion
+                       </p>
+                       <p className="text-sm font-bold text-indigo-800 italic">"{currentQuestion?.hint}"</p>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowHint(true)}
+                      className="w-full py-3 bg-white border-2 border-dashed border-slate-200 rounded-2xl flex items-center justify-center gap-2 text-slate-400 hover:text-indigo-500 hover:border-indigo-300 transition-all text-xs font-black uppercase tracking-widest"
+                    >
+                      <Sparkles className="w-4 h-4" /> Reveal Tactical Hint
+                    </button>
+                  )}
+               </div>
+
                <div className="grid grid-cols-1 gap-4">
                  {currentQuestion?.options.map((opt, i) => {
                    const isSelected = selectedAnswer === i;
                    const isDisabled = !!mySubmission || !canInteract;
-                   
                    return (
-                     <button
-                       key={i}
-                       disabled={isDisabled}
-                       onClick={() => setSelectedAnswer(i)}
-                       className={`w-full p-5 rounded-2xl border-2 text-left flex items-center transition-all duration-200 active:scale-[0.98] ${
-                         isSelected 
-                          ? 'bg-slate-900 text-white border-slate-900 shadow-xl' 
-                          : isDisabled 
-                            ? 'bg-slate-50 text-slate-400 border-slate-100' 
-                            : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300 shadow-sm'
-                       }`}
-                     >
-                       <span className={`w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-lg font-black shrink-0 ${
-                         isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'
-                       }`}>
-                         {String.fromCharCode(65 + i)}
-                       </span>
-                       <span className={`text-lg font-bold leading-tight ${isSelected ? 'text-white' : ''}`}>
-                         {opt}
-                       </span>
+                     <button key={i} disabled={isDisabled} onClick={() => setSelectedAnswer(i)} className={`w-full p-5 rounded-2xl border-2 text-left flex items-center transition-all duration-200 active:scale-[0.98] ${isSelected ? 'bg-slate-900 text-white border-slate-900 shadow-xl' : isDisabled ? 'bg-slate-50 text-slate-400 border-slate-100' : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300 shadow-sm'}`}>
+                       <span className={`w-10 h-10 rounded-xl flex items-center justify-center mr-4 text-lg font-black shrink-0 ${isSelected ? 'bg-indigo-500 text-white' : 'bg-slate-100 text-slate-500'}`}>{String.fromCharCode(65 + i)}</span>
+                       <span className={`text-lg font-bold leading-tight ${isSelected ? 'text-white' : ''}`}>{opt}</span>
                      </button>
                    );
                  })}
@@ -204,23 +197,11 @@ const TeamView: React.FC = () => {
 
                {!mySubmission ? (
                  <div className="space-y-4 pt-4">
-                   <button 
-                     disabled={selectedAnswer === null || isSubmitting || !canInteract}
-                     onClick={() => handleSubmit('ANSWER')}
-                     className={`w-full py-5 rounded-2xl text-xl font-black shadow-xl active:scale-95 transition-all uppercase tracking-widest ${
-                       isBuzzer 
-                        ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-amber-500/30' 
-                        : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-indigo-500/30'
-                     } ${(!canInteract || selectedAnswer === null) ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}
-                   >
+                   <button disabled={selectedAnswer === null || isSubmitting || !canInteract} onClick={() => handleSubmit('ANSWER')} className={`w-full py-5 rounded-2xl text-xl font-black shadow-xl active:scale-95 transition-all uppercase tracking-widest ${isBuzzer ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-amber-500/30' : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-indigo-500/30'} ${(!canInteract || selectedAnswer === null) ? 'opacity-50 grayscale cursor-not-allowed' : ''}`}>
                      {isSubmitting ? 'Sending...' : (isBuzzer ? 'BUZZ' : 'SUBMIT')}
                    </button>
                    {!isBuzzer && isMyTurn && (
-                     <button 
-                       disabled={isSubmitting}
-                       onClick={() => handleSubmit('PASS')}
-                       className="w-full py-4 rounded-2xl bg-white text-slate-900 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all border border-slate-200 shadow-lg"
-                     >
+                     <button disabled={isSubmitting} onClick={() => handleSubmit('PASS')} className="w-full py-4 rounded-2xl bg-white text-slate-900 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 active:scale-95 transition-all border border-slate-200 shadow-lg">
                        <Forward className="w-4 h-4" /> Tactical Pass (+10)
                      </button>
                    )}
@@ -283,12 +264,10 @@ const TeamView: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans max-w-md mx-auto shadow-2xl overflow-hidden relative">
-      {/* Background Decor */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute -top-[20%] -right-[20%] w-[80%] h-[80%] bg-indigo-500/5 rounded-full blur-3xl" />
         <div className="absolute top-[20%] -left-[20%] w-[60%] h-[60%] bg-cyan-500/5 rounded-full blur-3xl" />
       </div>
-
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-200 p-4 sticky top-0 z-40 flex justify-between items-center">
         <div className="flex items-center gap-3">
            <div className="scale-75 origin-left">
@@ -309,11 +288,7 @@ const TeamView: React.FC = () => {
            </button>
         </div>
       </header>
-      
-      <main className="flex-grow p-4 relative z-10">
-        {renderContent()}
-      </main>
-
+      <main className="flex-grow p-4 relative z-10">{renderContent()}</main>
       <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200 p-4 z-50 max-w-md mx-auto">
         <div className="flex items-center gap-4">
            <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center shrink-0 shadow-lg">
@@ -321,9 +296,7 @@ const TeamView: React.FC = () => {
            </div>
            <div className="flex-grow">
               <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest mb-0.5">Bodhini Uplink</p>
-              <p className="text-xs font-medium text-slate-700 leading-snug italic line-clamp-2">
-                "{bodhiniInsight || "Monitoring session parameters..."}"
-              </p>
+              <p className="text-xs font-medium text-slate-700 leading-snug italic line-clamp-2">"{bodhiniInsight || "Monitoring session parameters..."}"</p>
            </div>
         </div>
       </div>
