@@ -44,7 +44,10 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const preloadedAudioRef = useRef<string | null>(null); // Store base64 audio
+  
+  // Audio Caches
+  const preloadedAudioRef = useRef<string | null>(null); // Question reading
+  const preloadedResultAudioRef = useRef<{ id: string; audio: string; text: string } | null>(null); // Result commentary
 
   const currentQuestion = MOCK_QUESTIONS.find(q => q.id === session?.currentQuestionId);
 
@@ -61,9 +64,12 @@ const DisplayView: React.FC = () => {
     setAudioInitialized(true);
   };
 
-  // Pre-fetch Question Audio when in PREVIEW
+  // 1. Pre-fetch Question Audio (PREVIEW Mode)
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW && currentQuestion && session.currentQuestionId !== lastQuestionIdRef.current) {
+        // Reset Result Cache on new question
+        preloadedResultAudioRef.current = null;
+        
         const fetchAudio = async () => {
             const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
             const audioData = await API.generateBodhiniAudio(textToRead);
@@ -75,33 +81,74 @@ const DisplayView: React.FC = () => {
     }
   }, [session?.status, session?.currentQuestionId, currentQuestion]);
 
+  // 2. Pre-fetch Result Audio (LOCKED or Submissions Exist)
+  useEffect(() => {
+    if (!session || !currentQuestion) return;
+
+    // We pre-calculate result audio as soon as we have a submission or lock
+    // This ensures that when the admin hits "Reveal", the audio is already ready.
+    const prepareResultAudio = async () => {
+        const lastSub = session.submissions[session.submissions.length - 1];
+        
+        // Create a unique cache ID based on the submission state
+        const cacheId = lastSub 
+            ? `${lastSub.teamId}-${lastSub.timestamp}-${currentQuestion.id}` 
+            : `no-subs-${currentQuestion.id}`;
+
+        // If we already have this specific outcome cached, do nothing
+        if (preloadedResultAudioRef.current?.id === cacheId) return;
+
+        let context = "";
+        if (lastSub) {
+            const team = session.teams.find(t => t.id === lastSub.teamId);
+            const isCorrect = !!lastSub.isCorrect;
+            context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
+        } else {
+            context = `No answer received. The correct answer is ${currentQuestion.options[currentQuestion.correctAnswer]}.`;
+        }
+
+        // Trigger generation if we are Locked OR have submissions (anticipating reveal)
+        if (session.submissions.length > 0 || session.status === QuizStatus.LOCKED) {
+             try {
+                const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion.text, context);
+                const audio = await API.generateBodhiniAudio(insight);
+                if (audio) {
+                    preloadedResultAudioRef.current = { id: cacheId, audio, text: insight };
+                }
+             } catch (e) {
+                 console.error("Failed to pre-fetch result audio", e);
+             }
+        }
+    };
+    
+    if (session.status === QuizStatus.LOCKED || session.status === QuizStatus.LIVE) {
+        prepareResultAudio();
+    }
+
+  }, [session?.submissions, session?.status, session?.currentQuestionId, currentQuestion]);
+
+
   // Timer Logic - Starts ONLY after reading is complete
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD') {
-      // If we are currently reading, hold the timer at 30
       if (isReadingQuestion) {
           setTurnTimeLeft(30);
           return;
       }
-
-      // Initialize the start timestamp once reading finishes
       if (!timerStartAt) {
           setTimerStartAt(Date.now());
       }
-
       const interval = setInterval(() => {
         if (!timerStartAt) return;
         const elapsed = Math.floor((Date.now() - timerStartAt) / 1000);
         const remaining = Math.max(0, 30 - elapsed);
         setTurnTimeLeft(remaining);
-        
         if (remaining <= 5 && remaining > 0) {
             SFX.playTimerTick();
         }
       }, 100);
       return () => clearInterval(interval);
     } else {
-        // Reset local timer state when not LIVE standard
         if (session?.status !== QuizStatus.LIVE) {
             setTimerStartAt(null);
             setIsReadingQuestion(false);
@@ -113,7 +160,6 @@ const DisplayView: React.FC = () => {
     if (!audioInitialized || !audioContextRef.current) return;
     const ctx = audioContextRef.current;
     
-    // Stop any currently playing audio
     if (activeSourceRef.current) {
       try { activeSourceRef.current.stop(); } catch (e) {}
     }
@@ -134,7 +180,6 @@ const DisplayView: React.FC = () => {
         setIsSpeaking(false);
         if (isCommentary) setTimeout(() => setCommentary(""), 2000);
         
-        // If this was the question reading, release the timer
         if (!isCommentary && isReadingQuestion) {
             setIsReadingQuestion(false);
         }
@@ -162,21 +207,17 @@ const DisplayView: React.FC = () => {
         setTimerStartAt(null);
     }
 
-    // 2. LIVE Mode Detected -> Read Question (Using Preloaded if available)
+    // 2. LIVE Mode Detected -> Read Question
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        if (session.currentQuestionId && currentQuestion) {
           SFX.playIntro();
           
-          // Mark that we are reading, so timer pauses
           setIsReadingQuestion(true);
-          
-          // Construct text for fallback
           const textToRead = API.formatQuestionForSpeech(currentQuestion.text, currentQuestion.options);
           
-          // Use preloaded audio if valid, otherwise fetch
+          // Use preloaded question audio
           const audio = preloadedAudioRef.current;
-          // Clear cache to avoid reusing
-          preloadedAudioRef.current = null;
+          preloadedAudioRef.current = null; // consume
           
           playBodhiniSpeech(textToRead, false, audio || undefined);
        }
@@ -200,20 +241,31 @@ const DisplayView: React.FC = () => {
     if (session.status === QuizStatus.REVEALED && lastStatusRef.current !== QuizStatus.REVEALED) {
        const processResult = async () => {
          const lastSub = session.submissions[session.submissions.length - 1];
-         let context = "No answer.";
-         let isCorrect = false;
-
-         if (lastSub) {
-            const team = session.teams.find(t => t.id === lastSub.teamId);
-            isCorrect = !!lastSub.isCorrect;
-            context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
-         }
+         const isCorrect = lastSub ? !!lastSub.isCorrect : false;
          
+         // Play SFX immediately
          if (isCorrect) SFX.playCorrect();
          else SFX.playWrong();
 
-         const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
-         playBodhiniSpeech(insight, true);
+         // Use Preloaded Result Audio if available for Instant Playback
+         // We construct the ID again to verify match
+         const cacheId = lastSub 
+            ? `${lastSub.teamId}-${lastSub.timestamp}-${currentQuestion?.id}` 
+            : `no-subs-${currentQuestion?.id}`;
+
+         if (preloadedResultAudioRef.current && preloadedResultAudioRef.current.id === cacheId) {
+             // Instant playback from cache
+             playBodhiniSpeech(preloadedResultAudioRef.current.text, true, preloadedResultAudioRef.current.audio);
+         } else {
+             // Fallback (cache miss)
+             let context = "No answer.";
+             if (lastSub) {
+                const team = session.teams.find(t => t.id === lastSub.teamId);
+                context = `Team ${team?.name} was ${isCorrect ? 'Correct' : 'Incorrect'}. Answer: ${currentQuestion?.options[currentQuestion.correctAnswer]}.`;
+             }
+             const insight = await API.getAIHostInsight(QuizStatus.REVEALED, currentQuestion?.text, context);
+             playBodhiniSpeech(insight, true);
+         }
        };
        processResult();
     }
@@ -222,8 +274,8 @@ const DisplayView: React.FC = () => {
     if (session.currentQuestionId !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestionId;
         lastSubmissionCountRef.current = 0;
-        // Also reset preload on question change
         preloadedAudioRef.current = null;
+        preloadedResultAudioRef.current = null;
     }
 
   }, [session?.status, session?.currentQuestionId, session?.submissions.length, session?.id]);
