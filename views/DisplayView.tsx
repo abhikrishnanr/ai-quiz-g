@@ -34,6 +34,7 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
   const explanationPlayedRef = useRef<boolean>(false);
+  const introPlayedRef = useRef<boolean>(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -50,6 +51,17 @@ const DisplayView: React.FC = () => {
     SFX.init();
     SFX.playIntro();
     setAudioInitialized(true);
+    
+    // Trigger Intro if not played
+    if (!introPlayedRef.current) {
+        introPlayedRef.current = true;
+        const introText = "Identity verified. Bodhini Core Online. Welcome to the DUK AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Rules are simple: Correct answers build your neural credit. Incorrect buzzer attempts will drain it. Speed is intelligence. Good luck.";
+        setTimeout(() => {
+            API.getTTSAudio(introText).then(audio => {
+                if (audio) playAudio(audio, "Welcome to DUK AI Quiz Platform");
+            });
+        }, 1500); // Slight delay after SFX
+    }
   };
 
   const playAudio = async (base64Data: string, text?: string, onEnd?: () => void) => {
