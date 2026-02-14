@@ -119,7 +119,7 @@ const AdminView: React.FC = () => {
                 className="w-full py-10 rounded-[2.5rem] bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 flex flex-col items-center gap-4"
                >
                  <RefreshCw className={`w-8 h-8 ${updating ? 'animate-spin' : ''}`} />
-                 LOAD NEURAL FRAGMENT
+                 LOAD NEXT QUESTION
                </button>
 
                <div className="grid grid-cols-2 gap-4 mt-4">
@@ -155,8 +155,8 @@ const AdminView: React.FC = () => {
             <Card className="border-t-[6px] border-t-indigo-600 overflow-hidden" noPadding>
               <div className="bg-slate-900/60 p-8 grid grid-cols-4 gap-4 border-b border-white/10">
                 <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
-                <ControlButton status={QuizStatus.LIVE} label="Energize" icon={Play} variant="success" desc="Broadcasting" />
-                <ControlButton status={QuizStatus.LOCKED} label="Freeze" icon={LockIcon} variant="danger" desc="Locking Link" />
+                <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
+                <ControlButton status={QuizStatus.LOCKED} label="Lock Answer" icon={LockIcon} variant="danger" desc="Stop Submissions" />
                 <button
                   onClick={() => performAction(API.revealAnswerAndProcessScores)} 
                   className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 h-32 transition-all duration-500 group ${
@@ -164,8 +164,8 @@ const AdminView: React.FC = () => {
                   }`}
                 >
                    <CheckCircle className="w-7 h-7 mb-3" />
-                   <span className="font-black uppercase text-[10px] tracking-widest">Reveal</span>
-                   <span className="text-[8px] font-bold uppercase mt-1 opacity-40">Synthesize</span>
+                   <span className="font-black uppercase text-[10px] tracking-widest">Reveal Answer</span>
+                   <span className="text-[8px] font-bold uppercase mt-1 opacity-40">Show Result</span>
                 </button>
               </div>
 

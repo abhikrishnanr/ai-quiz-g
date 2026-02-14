@@ -9,7 +9,7 @@ const AWS_CONFIG = {
   SECRET_KEY: "TTRvFt/WUZCwdRc8BTYc0UZ4yZUujM9QnXJyIt/C" 
 };
 
-const QUEUE_DELAY_MS = 300; // Even faster queue processing
+const QUEUE_DELAY_MS = 300; 
 const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_AWS_POLLY_V2';
 
 const pollyClient = new PollyClient({
@@ -106,7 +106,6 @@ export const API = {
       });
       const data = await response.json();
       
-      // Map API format to Internal format
       const mappedOptions = [
         data.options.A,
         data.options.B,
@@ -140,8 +139,8 @@ export const API = {
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) return persistentCache[cacheKey];
     
-    // Wrap in faster prosody for Bodhini
-    const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="1.15">${text}</prosody></speak>`;
+    // Adjusted rate to 1.10 (slightly slower than 1.15)
+    const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="1.10">${text}</prosody></speak>`;
     
     return new Promise((resolve) => {
       requestQueue.push({ text: ssmlText, isSSML: true, resolve });
@@ -155,10 +154,11 @@ export const API = {
       ? `Buzzer Round. Hands ready.` 
       : `Team ${activeTeamName}, this is your node.`;
     
-    return `<speak><prosody rate="1.15">${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> Options are: <break time="300ms"/> ${opts}</prosody></speak>`;
+    return `<speak><prosody rate="1.10">${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> Options are: <break time="300ms"/> ${opts}</prosody></speak>`;
   },
 
-  formatExplanationForSpeech: (explanation: string): string => {
-    return `<speak><prosody rate="1.15">Synthesis complete. Here is the context: <break time="400ms"/> ${explanation}</prosody></speak>`;
+  formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
+    const resultPhrase = isCorrect === undefined ? "" : (isCorrect ? "That is correct." : "That is incorrect.");
+    return `<speak><prosody rate="1.10">${resultPhrase} <break time="400ms"/> Synthesis complete. Here is the context: <break time="400ms"/> ${explanation}</prosody></speak>`;
   }
 };

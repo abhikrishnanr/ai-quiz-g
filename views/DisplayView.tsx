@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
@@ -5,7 +6,6 @@ import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
 import { HOST_SCRIPTS } from '../constants';
 import { Timer, Badge } from '../components/SharedUI';
-// Fix: Added Clock to the lucide-react imports
 import { Trophy, CheckCircle2, Lock as LockIcon, Power, Sparkles, Brain, Clock } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
@@ -32,6 +32,7 @@ const DisplayView: React.FC = () => {
   
   const lastQuestionIdRef = useRef<string | null>(null);
   const lastStatusRef = useRef<QuizStatus | null>(null);
+  const lastSubmissionCountRef = useRef<number>(0);
   const explanationPlayedRef = useRef<boolean>(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -96,14 +97,29 @@ const DisplayView: React.FC = () => {
        }
     }
 
+    // Detect new submissions for locking announcement
+    if (session.submissions.length > lastSubmissionCountRef.current) {
+       const newSub = session.submissions[session.submissions.length - 1];
+       const team = session.teams.find(t => t.id === newSub.teamId);
+       if (team && audioInitialized) { 
+           SFX.playLock();
+           const lockText = `Answer locked by ${team.name}.`;
+           API.getTTSAudio(lockText).then(audio => {
+                if (audio) playAudio(audio, `Locked by ${team.name}`);
+           });
+       }
+    }
+
     if (session.status === QuizStatus.REVEALED && !explanationPlayedRef.current) {
        explanationPlayedRef.current = true;
-       const isCorrect = session.submissions[session.submissions.length-1]?.isCorrect;
+       const submission = session.submissions[session.submissions.length-1];
+       const isCorrect = submission?.isCorrect;
+
        if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
 
-       // Sequence: Reveal -> Speak Explanation
+       // Sequence: Reveal SFX -> Speak Result & Explanation
        setTimeout(() => {
-         API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation)).then(audio => {
+         API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
            if (audio) playAudio(audio, "Data Synthesis Active");
          });
        }, 1500);
@@ -112,9 +128,12 @@ const DisplayView: React.FC = () => {
     if (session.currentQuestion?.id !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestion?.id || null;
         explanationPlayedRef.current = false;
+        lastSubmissionCountRef.current = 0; // Reset count on new question
     }
+    
     lastStatusRef.current = session.status;
-  }, [session?.status, session?.currentQuestion?.id]);
+    lastSubmissionCountRef.current = session.submissions.length;
+  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length]);
 
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && !session.isReading) {
@@ -141,6 +160,9 @@ const DisplayView: React.FC = () => {
   }
 
   const isQuestionVisible = !!currentQuestion && session.status !== QuizStatus.PREVIEW;
+  const lockingTeam = session.submissions.length > 0 
+    ? session.teams.find(t => t.id === session.submissions[session.submissions.length - 1].teamId) 
+    : null;
 
   return (
     <div className="min-h-screen bg-slate-950 flex overflow-hidden relative font-sans">
@@ -160,7 +182,19 @@ const DisplayView: React.FC = () => {
         </div>
 
         {isQuestionVisible && (
-          <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700">
+          <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700 relative">
+             
+             {/* Visual Lock Indicator */}
+             {(session.status === QuizStatus.LOCKED || (session.status === QuizStatus.LIVE && lockingTeam)) && (
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in duration-300 pointer-events-none">
+                    <div className="bg-slate-900/90 border-2 border-indigo-500 p-10 rounded-[2.5rem] shadow-[0_0_80px_rgba(99,102,241,0.5)] text-center backdrop-blur-xl">
+                        <LockIcon className="w-16 h-16 text-indigo-400 mx-auto mb-6 animate-pulse" />
+                        <p className="text-slate-400 text-sm font-black uppercase tracking-[0.4em] mb-4">System Locked</p>
+                        <p className="text-4xl font-black text-white uppercase tracking-tight">{lockingTeam?.name}</p>
+                    </div>
+                </div>
+             )}
+
              <div className="flex justify-between items-center">
                 <Badge color={currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>{currentQuestion.roundType} ROUND</Badge>
                 <div className="flex items-center gap-10">
