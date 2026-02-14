@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
@@ -55,10 +54,10 @@ const DisplayView: React.FC = () => {
     // Trigger Intro if not played
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Identity verified. Bodhini Core Online. Welcome to the DUK AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Rules are simple: Correct answers build your neural credit. Incorrect buzzer attempts will drain it. Speed is intelligence. Good luck.";
+        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Rules are simple: Correct answers build your neural credit. Incorrect buzzer attempts will drain it. Speed is intelligence. Good luck.";
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
-                if (audio) playAudio(audio, "Welcome to DUK AI Quiz Platform");
+                if (audio) playAudio(audio, "Welcome to Digital University AI Quiz Platform");
             });
         }, 1500); // Slight delay after SFX
     }

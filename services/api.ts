@@ -1,4 +1,3 @@
-
 import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType } from '../types';
 import { QuizService } from './mockBackend';
@@ -139,8 +138,8 @@ export const API = {
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) return persistentCache[cacheKey];
     
-    // Adjusted rate to 1.10 (slightly slower than 1.15)
-    const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="1.10">${text}</prosody></speak>`;
+    // Adjusted rate to 0.9 (slower)
+    const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="0.9">${text}</prosody></speak>`;
     
     return new Promise((resolve) => {
       requestQueue.push({ text: ssmlText, isSSML: true, resolve });
@@ -154,11 +153,11 @@ export const API = {
       ? `Buzzer Round. Hands ready.` 
       : `Team ${activeTeamName}, this is your node.`;
     
-    return `<speak><prosody rate="1.10">${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> Options are: <break time="300ms"/> ${opts}</prosody></speak>`;
+    return `<speak><prosody rate="0.9">${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> Options are: <break time="300ms"/> ${opts}</prosody></speak>`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
     const resultPhrase = isCorrect === undefined ? "" : (isCorrect ? "That is correct." : "That is incorrect.");
-    return `<speak><prosody rate="1.10">${resultPhrase} <break time="400ms"/> Synthesis complete. Here is the context: <break time="400ms"/> ${explanation}</prosody></speak>`;
+    return `<speak><prosody rate="0.9">${resultPhrase} <break time="400ms"/> Synthesis complete. Here is the context: <break time="400ms"/> ${explanation}</prosody></speak>`;
   }
 };

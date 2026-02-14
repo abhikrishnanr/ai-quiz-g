@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import AdminView from './views/AdminView';
@@ -22,8 +21,8 @@ const Home: React.FC = () => (
         <BrainCircuit className="w-20 h-20 text-indigo-400 drop-shadow-[0_0_15px_rgba(129,140,248,0.5)]" />
       </div>
       
-      <h1 className="text-6xl md:text-7xl font-black text-white mb-6 font-display tracking-tighter text-center leading-tight">
-        DUK <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">AI QUIZ</span>
+      <h1 className="text-5xl md:text-7xl font-black text-white mb-6 font-display tracking-tighter text-center leading-tight">
+        DIGITAL UNIVERSITY <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">AI QUIZ</span>
       </h1>
       <p className="text-xl text-slate-400 mb-16 max-w-lg text-center font-medium leading-relaxed">
         Next-generation competitive intelligence platform driven by real-time neural processing.
