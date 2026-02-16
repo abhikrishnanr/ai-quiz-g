@@ -1,5 +1,5 @@
 import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
-import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType } from '../types';
+import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
 import { QuizService } from './mockBackend';
 
 const AWS_CONFIG = {
@@ -27,6 +27,10 @@ type QueueItem = {
 
 const requestQueue: QueueItem[] = [];
 let isProcessingQueue = false;
+
+// Track difficulty for cycling
+let difficultyIndex = 0;
+const DIFFICULTY_LEVELS: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
 
 const getPersistentCache = (): Record<string, string> => {
   try {
@@ -98,10 +102,21 @@ export const API = {
   generateQuestion: async (): Promise<QuizSession> => {
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
+    
+    // Cycle through difficulty levels for progressive challenge
+    const difficulty = DIFFICULTY_LEVELS[difficultyIndex % DIFFICULTY_LEVELS.length];
+    difficultyIndex++;
 
     try {
       const response = await fetch('https://yzkb3thuf4.execute-api.us-east-1.amazonaws.com/prod/quiz', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: "question",
+          difficulty: difficulty.toLowerCase()
+        })
       });
       const data = await response.json();
       
@@ -122,8 +137,8 @@ export const API = {
         points: nextRound === 'BUZZER' ? 150 : 100,
         timeLimit: 30,
         roundType: nextRound,
-        difficulty: 'MEDIUM',
-        hint: 'Analyze the query carefully.'
+        difficulty: difficulty,
+        hint: data.hint || 'Analyze the query carefully.'
       };
 
       return QuizService.injectDynamicQuestion(question);
@@ -138,7 +153,7 @@ export const API = {
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) return persistentCache[cacheKey];
     
-    // Adjusted rate to 0.9 (slower)
+    // Slower prosody rate for clearer neural synthesis
     const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="0.9">${text}</prosody></speak>`;
     
     return new Promise((resolve) => {
