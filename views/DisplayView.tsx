@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
@@ -18,10 +17,6 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-/**
- * Decodes raw PCM audio data into an AudioBuffer for the Web Audio API.
- * The Gemini TTS model returns 16-bit PCM at 24000Hz.
- */
 async function decodeAudioData(
   data: Uint8Array,
   ctx: AudioContext,
@@ -70,15 +65,14 @@ const DisplayView: React.FC = () => {
     SFX.playIntro();
     setAudioInitialized(true);
     
-    // Trigger Intro if not played
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Speed is intelligence. Good luck.";
+        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host.";
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
-                if (audio) playAudio(audio, "Welcome to Digital University AI Quiz Platform");
+                if (audio) playAudio(audio, "Bodhini Core Online");
             });
-        }, 1500); 
+        }, 1000); 
     }
   };
 
@@ -91,7 +85,6 @@ const DisplayView: React.FC = () => {
     setIsSpeaking(true);
 
     try {
-        // Fix: Use raw PCM decoder for Gemini TTS output
         const audioBuffer = await decodeAudioData(decodeBase64(base64Data), ctx, 24000, 1);
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
@@ -150,7 +143,7 @@ const DisplayView: React.FC = () => {
 
        setTimeout(() => {
          API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
-           if (audio) playAudio(audio, "Data Synthesis Active");
+           if (audio) playAudio(audio, "Synthesis Complete");
          });
        }, 1500);
     }
@@ -184,7 +177,7 @@ const DisplayView: React.FC = () => {
       return (
           <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center cursor-pointer" onClick={initAudio}>
               <Power className="w-16 h-16 text-indigo-400 mb-8 animate-pulse" />
-              <h1 className="text-3xl font-black text-white uppercase tracking-[0.2em]">Activate Display Node</h1>
+              <h1 className="text-3xl font-black text-white uppercase tracking-[0.2em]">Initialize Node</h1>
           </div>
       );
   }
@@ -198,28 +191,28 @@ const DisplayView: React.FC = () => {
     <div className="min-h-screen bg-slate-950 flex overflow-hidden relative font-sans">
       <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)] z-10" />
       
-      <div className="relative z-20 w-full h-screen grid grid-cols-12 gap-8 p-12">
-        <div className={`flex flex-col items-center justify-center transition-all duration-1000 ${
-            !isQuestionVisible ? 'col-span-12 scale-150' : 'col-span-4'
+      <div className="relative z-20 w-full h-screen grid grid-cols-12 gap-8 p-12 overflow-hidden">
+        <div className={`transition-all duration-1000 h-full flex flex-col items-center justify-center min-h-[500px] ${
+            !isQuestionVisible ? 'col-span-12' : 'col-span-4'
         }`}>
            <AIHostAvatar size="xl" isSpeaking={isSpeaking} commentary={commentary} />
            {!isQuestionVisible && currentQuestion && (
-              <div className="mt-12 text-center animate-in fade-in zoom-in">
-                 <Badge color="indigo">INCOMING SEQUENCE</Badge>
-                 <h2 className="text-5xl font-black text-white mt-4 uppercase tracking-tighter">{currentQuestion.roundType}</h2>
+              <div className="mt-8 text-center animate-in fade-in zoom-in">
+                 <Badge color="indigo">INCOMING FRAGMENT</Badge>
+                 <h2 className="text-4xl font-black text-white mt-4 uppercase tracking-tighter">{currentQuestion.roundType} ROUND</h2>
               </div>
            )}
         </div>
 
         {isQuestionVisible && (
-          <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700 relative">
+          <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700 relative h-full">
              
              {(session.status === QuizStatus.LOCKED || (session.status === QuizStatus.LIVE && lockingTeam)) && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in duration-300 pointer-events-none">
-                    <div className="bg-slate-900/90 border-2 border-indigo-500 p-10 rounded-[2.5rem] shadow-[0_0_80px_rgba(99,102,241,0.5)] text-center backdrop-blur-xl">
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in duration-300 pointer-events-none w-full max-w-md">
+                    <div className="bg-slate-900/95 border-2 border-indigo-500 p-10 rounded-[3rem] shadow-[0_0_80px_rgba(99,102,241,0.5)] text-center backdrop-blur-2xl">
                         <LockIcon className="w-16 h-16 text-indigo-400 mx-auto mb-6 animate-pulse" />
-                        <p className="text-slate-400 text-sm font-black uppercase tracking-[0.4em] mb-4">System Locked</p>
-                        <p className="text-4xl font-black text-white uppercase tracking-tight">{lockingTeam?.name}</p>
+                        <p className="text-slate-400 text-sm font-black uppercase tracking-[0.4em] mb-4">Uplink Secured</p>
+                        <p className="text-5xl font-black text-white uppercase tracking-tight">{lockingTeam?.name}</p>
                     </div>
                 </div>
              )}
@@ -230,41 +223,41 @@ const DisplayView: React.FC = () => {
                    {currentQuestion.roundType === 'STANDARD' && (
                      <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-2xl flex items-center gap-4">
                         <Clock className="w-5 h-5 text-indigo-400" />
-                        <span className="text-2xl font-black text-white tabular-nums">{turnTimeLeft}s</span>
+                        <span className="text-3xl font-black text-white tabular-nums">{turnTimeLeft}s</span>
                      </div>
                    )}
-                   <p className="text-4xl font-black text-white italic tracking-tighter">{currentQuestion.points} <span className="text-sm text-slate-500">CR</span></p>
+                   <p className="text-4xl font-black text-white italic tracking-tighter">{currentQuestion.points} <span className="text-sm text-slate-500">CREDITS</span></p>
                 </div>
              </div>
 
-             <div className="bg-white/5 backdrop-blur-3xl border border-white/10 p-16 rounded-[4rem] shadow-2xl relative overflow-hidden">
+             <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-12 rounded-[3.5rem] shadow-2xl relative overflow-hidden flex-grow flex flex-col justify-center">
                 <h2 className="text-5xl font-black text-white leading-tight mb-12 drop-shadow-2xl">{currentQuestion.text}</h2>
 
-                <div className="grid grid-cols-1 gap-6">
+                <div className="grid grid-cols-1 gap-4">
                    {currentQuestion.options.map((opt, i) => (
                       <div key={i} className={`flex items-center gap-8 p-6 rounded-3xl border transition-all duration-500 ${
                           session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer 
-                          ? 'bg-emerald-500/20 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)] scale-[1.02]' 
+                          ? 'bg-emerald-500/20 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)]' 
                           : session.status === QuizStatus.REVEALED ? 'opacity-20 border-white/5' : 'bg-white/5 border-white/10'
                       }`}>
-                         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black ${
-                             session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white shadow-xl'
+                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black ${
+                             session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white'
                          }`}>
                             {String.fromCharCode(65+i)}
                          </div>
-                         <span className="text-3xl font-bold tracking-tight text-white">{opt}</span>
-                         {session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer && <CheckCircle2 className="w-10 h-10 text-emerald-500 ml-auto" />}
+                         <span className="text-2xl font-bold tracking-tight text-white">{opt}</span>
+                         {session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer && <CheckCircle2 className="w-8 h-8 text-emerald-500 ml-auto" />}
                       </div>
                    ))}
                 </div>
 
                 {session.status === QuizStatus.REVEALED && (
-                  <div className="mt-12 p-10 bg-indigo-600/10 border-l-8 border-indigo-500 rounded-r-[3rem] animate-in zoom-in duration-700">
-                     <div className="flex items-center gap-4 mb-4">
-                        <Brain className="w-6 h-6 text-indigo-400" />
-                        <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.5em]">Neural Explanation</span>
+                  <div className="mt-10 p-8 bg-indigo-600/10 border-l-8 border-indigo-500 rounded-r-[2rem] animate-in zoom-in duration-700">
+                     <div className="flex items-center gap-3 mb-3">
+                        <Brain className="w-5 h-5 text-indigo-400" />
+                        <span className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em]">Neural Summary</span>
                      </div>
-                     <p className="text-2xl font-bold text-slate-200 leading-relaxed italic">"{currentQuestion.explanation}"</p>
+                     <p className="text-xl font-bold text-slate-200 leading-relaxed italic">"{currentQuestion.explanation}"</p>
                   </div>
                 )}
              </div>

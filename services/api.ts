@@ -1,13 +1,16 @@
-
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
 import { QuizService } from './mockBackend';
 
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safely initialize Gemini API
+const apiKey = process.env.API_KEY;
+if (!apiKey) {
+  console.warn("API_KEY environment variable is missing.");
+}
+const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
 
-const QUEUE_DELAY_MS = 100; 
-const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V1';
+const QUEUE_DELAY_MS = 250; 
+const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
 
 type QueueItem = {
   text: string;
@@ -16,10 +19,6 @@ type QueueItem = {
 
 const requestQueue: QueueItem[] = [];
 let isProcessingQueue = false;
-
-// Track difficulty for cycling
-let difficultyIndex = 0;
-const DIFFICULTY_LEVELS: Difficulty[] = ['EASY', 'MEDIUM', 'HARD'];
 
 const getPersistentCache = (): Record<string, string> => {
   try {
@@ -39,7 +38,7 @@ const saveToPersistentCache = (key: string, base64: string) => {
 };
 
 const processQueue = async () => {
-  if (isProcessingQueue || requestQueue.length === 0) return;
+  if (isProcessingQueue || requestQueue.length === 0 || !apiKey) return;
   isProcessingQueue = true;
   const { text, resolve } = requestQueue.shift()!;
   
@@ -87,19 +86,14 @@ export const API = {
   submitTeamAnswer: async (teamId: string, qId: string, ans?: number, type: SubmissionType = 'ANSWER'): Promise<Submission> => QuizService.submitAnswer(teamId, qId, ans, type),
 
   generateQuestion: async (): Promise<QuizSession> => {
+    if (!apiKey) throw new Error("API Key missing");
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
-    
-    // Cycle through difficulty levels for progressive challenge
-    const difficulty = DIFFICULTY_LEVELS[difficultyIndex % DIFFICULTY_LEVELS.length];
-    difficultyIndex++;
 
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Generate a multiple-choice quiz question about Artificial Intelligence. 
-        Difficulty: ${difficulty}.
-        Return a JSON object with: question (string), options (object with A, B, C, D as strings), correct_answer (one of "A", "B", "C", "D"), explanation (string), and hint (string).`,
+        contents: `Generate a multiple-choice quiz question about Artificial Intelligence. Round type: ${nextRound}.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -126,26 +120,17 @@ export const API = {
       });
 
       const data = JSON.parse(response.text || '{}');
-      
-      const mappedOptions = [
-        data.options.A,
-        data.options.B,
-        data.options.C,
-        data.options.D
-      ];
-      const correctIdx = ['A', 'B', 'C', 'D'].indexOf(data.correct_answer);
-
       const question: Question = {
         id: `gemini_${Date.now()}`,
         text: data.question,
-        options: mappedOptions,
-        correctAnswer: correctIdx,
+        options: [data.options.A, data.options.B, data.options.C, data.options.D],
+        correctAnswer: ['A', 'B', 'C', 'D'].indexOf(data.correct_answer),
         explanation: data.explanation,
         points: nextRound === 'BUZZER' ? 150 : 100,
         timeLimit: 30,
         roundType: nextRound,
-        difficulty: difficulty,
-        hint: data.hint || 'Analyze the context clues.'
+        difficulty: 'MEDIUM',
+        hint: data.hint || 'Analyze the context.'
       };
 
       return QuizService.injectDynamicQuestion(question);
@@ -168,15 +153,10 @@ export const API = {
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
-    let intro = question.roundType === 'BUZZER' 
-      ? `Buzzer Round. Hands ready.` 
-      : `Team ${activeTeamName}, this is your node.`;
-    
-    return `${intro} ${question.text} Options are: ${opts}`;
+    return `${question.text} Options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
-    const resultPhrase = isCorrect === undefined ? "" : (isCorrect ? "That is correct." : "That is incorrect.");
-    return `${resultPhrase} Synthesis complete. Here is the context: ${explanation}`;
+    return `${isCorrect ? "Correct." : "Incorrect."} ${explanation}`;
   }
 };

@@ -12,12 +12,18 @@
             background-color: #020617;
             color: #f8fafc;
             overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        #root {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .font-display {
             font-family: 'Orbitron', sans-serif;
         }
         
-        /* Custom Animations */
         @keyframes reveal-question {
             0% { opacity: 0; transform: translateY(30px) scale(0.98); filter: blur(10px); }
             100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
@@ -26,15 +32,6 @@
             animation: reveal-question 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
 
-        @keyframes glow-pulse {
-            0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.2); }
-            50% { box-shadow: 0 0 50px rgba(99, 102, 241, 0.5); }
-        }
-        .animate-glow-indigo {
-            animation: glow-pulse 3s ease-in-out infinite;
-        }
-
-        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar {
           width: 5px;
         }
@@ -45,54 +42,44 @@
           background: rgba(255, 255, 255, 0.1);
           border-radius: 10px;
         }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(255, 255, 255, 0.2);
-        }
 
-        /* Polyfill for tailwindcss-animate utilities */
         .animate-in { animation-duration: 0.5s; animation-timing-function: ease-out; animation-fill-mode: both; }
         .fade-in { animation-name: fadeIn; }
         .slide-in-from-bottom { animation-name: slideInBottom; }
-        .slide-in-from-bottom-6 { animation-name: slideInBottom6; }
-        .slide-in-from-bottom-4 { animation-name: slideInBottom4; }
-        .slide-in-from-right { animation-name: slideInRight; }
         .zoom-in { animation-name: zoomIn; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInBottom { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideInBottom6 { from { transform: translateY(1.5rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideInBottom4 { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes slideInRight { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
     </style>
-<script>
-    window.process = { 
-        env: { NODE_ENV: 'production' },
-        browser: true,
-        version: ''
-    };
-    window.global = window;
-</script>
-<script type="importmap">
+    <script>
+        window.process = { 
+            env: { NODE_ENV: 'production' },
+            browser: true,
+            version: ''
+        };
+        window.global = window;
+    </script>
+    <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@18.2.0",
-    "react/": "https://esm.sh/react@18.2.0/",
-    "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
     "react-router-dom": "https://esm.sh/react-router-dom@6.22.3?external=react,react-dom",
     "lucide-react": "https://esm.sh/lucide-react@0.344.0?external=react",
-    "@aws-sdk/client-polly": "https://esm.sh/@aws-sdk/client-polly@3.451.0?target=es2022&bundle",
-    "@google/genai": "https://esm.sh/@google/genai@0.1.2",
+    "@google/genai": "https://esm.sh/@google/genai@0.2.1",
     "three": "https://esm.sh/three@0.160.0",
-    "@types/three": "https://esm.sh/@types/three@0.160.0",
     "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.15.16?external=react,react-dom,three",
-    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber"
+    "@react-three/drei": "https://esm.sh/@react-three/drei@9.99.0?external=react,react-dom,three,@react-three/fiber",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>
