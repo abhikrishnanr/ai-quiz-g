@@ -267,22 +267,23 @@ const DisplayView: React.FC = () => {
           <main className="flex-grow grid grid-cols-12 gap-8 items-stretch">
              
              {/* LEFT COMMAND COLUMN (Avatar & Status) */}
-             <div className="col-span-3 flex flex-col gap-6">
-                {/* Avatar Container */}
-                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col items-center justify-center flex-grow relative overflow-hidden group">
-                   <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent opacity-50" />
+             <div className="col-span-3 flex flex-col gap-8 justify-center">
+                {/* Avatar Container - Removed card styling */}
+                <div className="flex flex-col items-center justify-center flex-grow relative z-10">
                    <AIHostAvatar size="xl" isSpeaking={isSpeaking} />
                    
-                   {/* Host Status Subtitles */}
-                   <div className="mt-8 w-full min-h-[80px] text-center relative z-20">
+                   {/* Subtitles (Text below Avatar) */}
+                   <div className="mt-8 w-full min-h-[100px] flex items-center justify-center">
                       {commentary ? (
-                        <p className="text-indigo-200 text-sm font-medium leading-relaxed animate-in fade-in italic">"{commentary}"</p>
-                      ) : (
-                        <div className="flex justify-center gap-1 mt-4">
-                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                        <div className="bg-slate-950/70 backdrop-blur-md border border-white/10 px-6 py-4 rounded-2xl animate-in fade-in slide-in-from-bottom-2 text-center shadow-xl max-w-sm">
+                           <p className="text-indigo-200 text-lg font-medium leading-relaxed font-sans italic">"{commentary}"</p>
                         </div>
+                      ) : (
+                         <div className="flex gap-2 opacity-30">
+                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />
+                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.1s]" />
+                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
+                         </div>
                       )}
                    </div>
                 </div>
@@ -317,7 +318,8 @@ const DisplayView: React.FC = () => {
                           <div className="absolute top-0 right-0 p-8 opacity-10">
                              <Brain className="w-48 h-48 text-white rotate-12" />
                           </div>
-                          <h2 className="relative z-10 text-5xl md:text-6xl font-display font-bold text-white leading-[1.15] tracking-tight drop-shadow-lg">
+                          {/* UPDATED: Uses font-sans and leading-relaxed for better readability */}
+                          <h2 className="relative z-10 text-4xl md:text-5xl lg:text-6xl font-sans font-bold text-white leading-relaxed tracking-wide drop-shadow-lg">
                              {currentQuestion.text}
                           </h2>
                       </div>
@@ -345,7 +347,8 @@ const DisplayView: React.FC = () => {
                                  `}>
                                     {String.fromCharCode(65+i)}
                                  </div>
-                                 <span className={`text-3xl font-bold tracking-tight ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                 {/* UPDATED: Uses font-sans and leading-normal */}
+                                 <span className={`text-2xl md:text-3xl font-sans font-semibold leading-normal tracking-wide ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
                                     {opt}
                                  </span>
                                  {isCorrect && (
@@ -385,7 +388,7 @@ const DisplayView: React.FC = () => {
                       </div>
                       <div>
                          <h4 className="text-xs font-black uppercase text-emerald-500 tracking-[0.3em] mb-2">Neural Analysis Complete</h4>
-                         <p className="text-xl font-medium text-slate-200 leading-relaxed">"{currentQuestion.explanation}"</p>
+                         <p className="text-xl font-medium text-slate-200 leading-relaxed font-sans">"{currentQuestion.explanation}"</p>
                       </div>
                    </div>
                 )}
