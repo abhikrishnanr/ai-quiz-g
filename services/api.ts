@@ -1,27 +1,16 @@
-import { PollyClient, SynthesizeSpeechCommand } from "@aws-sdk/client-polly";
+
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
 import { QuizService } from './mockBackend';
 
-const AWS_CONFIG = {
-  REGION: "us-east-1",
-  ACCESS_KEY: "AKIAWFBMM4PZB6RFGBFR", 
-  SECRET_KEY: "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" 
-};
+// Initialize Gemini API
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const QUEUE_DELAY_MS = 300; 
-const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_AWS_POLLY_V2';
-
-const pollyClient = new PollyClient({
-  region: AWS_CONFIG.REGION,
-  credentials: {
-    accessKeyId: AWS_CONFIG.ACCESS_KEY,
-    secretAccessKey: AWS_CONFIG.SECRET_KEY
-  }
-});
+const QUEUE_DELAY_MS = 100; 
+const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V1';
 
 type QueueItem = {
   text: string;
-  isSSML: boolean;
   resolve: (value: string | undefined) => void;
 };
 
@@ -49,30 +38,27 @@ const saveToPersistentCache = (key: string, base64: string) => {
   } catch (e) {}
 };
 
-const uint8ArrayToBase64 = (u8Arr: Uint8Array): string => {
-  let chunk = "";
-  for (let i = 0; i < u8Arr.byteLength; i++) {
-    chunk += String.fromCharCode(u8Arr[i]);
-  }
-  return btoa(chunk);
-};
-
 const processQueue = async () => {
   if (isProcessingQueue || requestQueue.length === 0) return;
   isProcessingQueue = true;
-  const { text, isSSML, resolve } = requestQueue.shift()!;
+  const { text, resolve } = requestQueue.shift()!;
+  
   try {
-    const command = new SynthesizeSpeechCommand({
-      Text: text,
-      OutputFormat: "mp3",
-      VoiceId: "Kajal", 
-      Engine: "neural",
-      TextType: isSSML ? "ssml" : "text"
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-preview-tts",
+      contents: [{ parts: [{ text: text }] }],
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
+          },
+        },
+      },
     });
-    const response = await pollyClient.send(command);
-    if (response.AudioStream) {
-      const byteArray = await response.AudioStream.transformToByteArray();
-      const base64Audio = uint8ArrayToBase64(byteArray);
+
+    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (base64Audio) {
       const cacheKey = text.trim().toLowerCase();
       saveToPersistentCache(cacheKey, base64Audio);
       resolve(base64Audio);
@@ -80,6 +66,7 @@ const processQueue = async () => {
       resolve(undefined);
     }
   } catch (error) {
+    console.error("Gemini TTS Failed", error);
     resolve(undefined);
   } finally {
     setTimeout(() => {
@@ -108,17 +95,37 @@ export const API = {
     difficultyIndex++;
 
     try {
-      const response = await fetch('https://yzkb3thuf4.execute-api.us-east-1.amazonaws.com/prod/quiz', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          action: "question",
-          difficulty: difficulty.toLowerCase()
-        })
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Generate a multiple-choice quiz question about Artificial Intelligence. 
+        Difficulty: ${difficulty}.
+        Return a JSON object with: question (string), options (object with A, B, C, D as strings), correct_answer (one of "A", "B", "C", "D"), explanation (string), and hint (string).`,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              question: { type: Type.STRING },
+              options: {
+                type: Type.OBJECT,
+                properties: {
+                  A: { type: Type.STRING },
+                  B: { type: Type.STRING },
+                  C: { type: Type.STRING },
+                  D: { type: Type.STRING },
+                },
+                required: ['A', 'B', 'C', 'D']
+              },
+              correct_answer: { type: Type.STRING },
+              explanation: { type: Type.STRING },
+              hint: { type: Type.STRING },
+            },
+            required: ['question', 'options', 'correct_answer', 'explanation', 'hint']
+          }
+        }
       });
-      const data = await response.json();
+
+      const data = JSON.parse(response.text || '{}');
       
       const mappedOptions = [
         data.options.A,
@@ -129,7 +136,7 @@ export const API = {
       const correctIdx = ['A', 'B', 'C', 'D'].indexOf(data.correct_answer);
 
       const question: Question = {
-        id: `aws_${Date.now()}`,
+        id: `gemini_${Date.now()}`,
         text: data.question,
         options: mappedOptions,
         correctAnswer: correctIdx,
@@ -138,12 +145,12 @@ export const API = {
         timeLimit: 30,
         roundType: nextRound,
         difficulty: difficulty,
-        hint: data.hint || 'Analyze the query carefully.'
+        hint: data.hint || 'Analyze the context clues.'
       };
 
       return QuizService.injectDynamicQuestion(question);
     } catch (e) {
-      console.error("AWS Generation Failed", e);
+      console.error("Gemini Question Generation Failed", e);
       throw e;
     }
   },
@@ -153,26 +160,23 @@ export const API = {
     const persistentCache = getPersistentCache();
     if (persistentCache[cacheKey]) return persistentCache[cacheKey];
     
-    // Slower prosody rate for clearer neural synthesis
-    const ssmlText = text.includes('<speak>') ? text : `<speak><prosody rate="0.9">${text}</prosody></speak>`;
-    
     return new Promise((resolve) => {
-      requestQueue.push({ text: ssmlText, isSSML: true, resolve });
+      requestQueue.push({ text, resolve });
       processQueue();
     });
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. <break time="200ms"/> ${opt}`).join('. <break time="400ms"/> ');
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
     let intro = question.roundType === 'BUZZER' 
       ? `Buzzer Round. Hands ready.` 
       : `Team ${activeTeamName}, this is your node.`;
     
-    return `<speak><prosody rate="0.9">${intro} <break time="500ms"/> ${question.text} <break time="800ms"/> Options are: <break time="300ms"/> ${opts}</prosody></speak>`;
+    return `${intro} ${question.text} Options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
     const resultPhrase = isCorrect === undefined ? "" : (isCorrect ? "That is correct." : "That is incorrect.");
-    return `<speak><prosody rate="0.9">${resultPhrase} <break time="400ms"/> Synthesis complete. Here is the context: <break time="400ms"/> ${explanation}</prosody></speak>`;
+    return `${resultPhrase} Synthesis complete. Here is the context: ${explanation}`;
   }
 };

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
@@ -17,9 +18,27 @@ function decodeBase64(base64: string) {
   return bytes;
 }
 
-async function decodeAudioData(data: Uint8Array, ctx: AudioContext): Promise<AudioBuffer> {
-  const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-  return await ctx.decodeAudioData(arrayBuffer);
+/**
+ * Decodes raw PCM audio data into an AudioBuffer for the Web Audio API.
+ * The Gemini TTS model returns 16-bit PCM at 24000Hz.
+ */
+async function decodeAudioData(
+  data: Uint8Array,
+  ctx: AudioContext,
+  sampleRate: number = 24000,
+  numChannels: number = 1,
+): Promise<AudioBuffer> {
+  const dataInt16 = new Int16Array(data.buffer);
+  const frameCount = dataInt16.length / numChannels;
+  const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
+
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < frameCount; i++) {
+      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+    }
+  }
+  return buffer;
 }
 
 const DisplayView: React.FC = () => {
@@ -54,12 +73,12 @@ const DisplayView: React.FC = () => {
     // Trigger Intro if not played
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Rules are simple: Correct answers build your neural credit. Incorrect buzzer attempts will drain it. Speed is intelligence. Good luck.";
+        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host. Teams, ensure your uplinks are stable. Speed is intelligence. Good luck.";
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
                 if (audio) playAudio(audio, "Welcome to Digital University AI Quiz Platform");
             });
-        }, 1500); // Slight delay after SFX
+        }, 1500); 
     }
   };
 
@@ -72,7 +91,8 @@ const DisplayView: React.FC = () => {
     setIsSpeaking(true);
 
     try {
-        const audioBuffer = await decodeAudioData(decodeBase64(base64Data), ctx);
+        // Fix: Use raw PCM decoder for Gemini TTS output
+        const audioBuffer = await decodeAudioData(decodeBase64(base64Data), ctx, 24000, 1);
         const source = ctx.createBufferSource();
         source.buffer = audioBuffer;
         source.connect(ctx.destination);
@@ -83,6 +103,7 @@ const DisplayView: React.FC = () => {
         };
         source.start();
     } catch (e) {
+        console.error("Audio Playback Error", e);
         setIsSpeaking(false);
         if (onEnd) onEnd();
     }
@@ -108,7 +129,6 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // Detect new submissions for locking announcement
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
@@ -128,7 +148,6 @@ const DisplayView: React.FC = () => {
 
        if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
 
-       // Sequence: Reveal SFX -> Speak Result & Explanation
        setTimeout(() => {
          API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
            if (audio) playAudio(audio, "Data Synthesis Active");
@@ -139,7 +158,7 @@ const DisplayView: React.FC = () => {
     if (session.currentQuestion?.id !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestion?.id || null;
         explanationPlayedRef.current = false;
-        lastSubmissionCountRef.current = 0; // Reset count on new question
+        lastSubmissionCountRef.current = 0; 
     }
     
     lastStatusRef.current = session.status;
@@ -195,7 +214,6 @@ const DisplayView: React.FC = () => {
         {isQuestionVisible && (
           <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700 relative">
              
-             {/* Visual Lock Indicator */}
              {(session.status === QuizStatus.LOCKED || (session.status === QuizStatus.LIVE && lockingTeam)) && (
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in duration-300 pointer-events-none">
                     <div className="bg-slate-900/90 border-2 border-indigo-500 p-10 rounded-[2.5rem] shadow-[0_0_80px_rgba(99,102,241,0.5)] text-center backdrop-blur-xl">
