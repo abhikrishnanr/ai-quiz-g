@@ -1,13 +1,10 @@
+
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
 import { QuizService } from './mockBackend';
 
-// Safely initialize Gemini API
-const apiKey = process.env.API_KEY;
-if (!apiKey) {
-  console.warn("API_KEY environment variable is missing.");
-}
-const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key' });
+// Fix: Strictly follow initialization guidelines and use process.env.API_KEY directly as a named parameter
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const QUEUE_DELAY_MS = 250; 
 const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
@@ -38,11 +35,12 @@ const saveToPersistentCache = (key: string, base64: string) => {
 };
 
 const processQueue = async () => {
-  if (isProcessingQueue || requestQueue.length === 0 || !apiKey) return;
+  if (isProcessingQueue || requestQueue.length === 0 || !process.env.API_KEY) return;
   isProcessingQueue = true;
   const { text, resolve } = requestQueue.shift()!;
   
   try {
+    // Fix: Using generateContent for text-to-speech task with correct model name
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
@@ -56,6 +54,7 @@ const processQueue = async () => {
       },
     });
 
+    // Fix: Accessing audio data from the response part property correctly
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const cacheKey = text.trim().toLowerCase();
@@ -86,13 +85,14 @@ export const API = {
   submitTeamAnswer: async (teamId: string, qId: string, ans?: number, type: SubmissionType = 'ANSWER'): Promise<Submission> => QuizService.submitAnswer(teamId, qId, ans, type),
 
   generateQuestion: async (): Promise<QuizSession> => {
-    if (!apiKey) throw new Error("API Key missing");
+    if (!process.env.API_KEY) throw new Error("API Key missing");
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
 
     try {
+      // Fix: Using 'gemini-3-pro-preview' for complex reasoning task (quiz generation) as per model selection guidelines
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents: `Generate a multiple-choice quiz question about Artificial Intelligence. Round type: ${nextRound}.`,
         config: {
           responseMimeType: "application/json",
@@ -119,6 +119,7 @@ export const API = {
         }
       });
 
+      // Fix: Using response.text property (not a method) to extract string output
       const data = JSON.parse(response.text || '{}');
       const question: Question = {
         id: `gemini_${Date.now()}`,
