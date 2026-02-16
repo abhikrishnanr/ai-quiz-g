@@ -1,11 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
 import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
-import { HOST_SCRIPTS } from '../constants';
-import { Timer, Badge } from '../components/SharedUI';
-import { Trophy, CheckCircle2, Lock as LockIcon, Power, Sparkles, Brain, Clock } from 'lucide-react';
+import { Badge } from '../components/SharedUI';
+import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 function decodeBase64(base64: string) {
@@ -47,6 +47,7 @@ const DisplayView: React.FC = () => {
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
   const explanationPlayedRef = useRef<boolean>(false);
+  const sfxPlayedRef = useRef<boolean>(false);
   const introPlayedRef = useRef<boolean>(false);
   
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -67,7 +68,7 @@ const DisplayView: React.FC = () => {
     
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform. I am your neural host.";
+        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform.";
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
                 if (audio) playAudio(audio, "Bodhini Core Online");
@@ -105,6 +106,7 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
+    // 1. New Question LIVE
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        const audioKey = `read_${currentQuestion.id}`;
@@ -122,6 +124,7 @@ const DisplayView: React.FC = () => {
        }
     }
 
+    // 2. Lock Answer
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
@@ -134,29 +137,36 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    if (session.status === QuizStatus.REVEALED && !explanationPlayedRef.current) {
+    // 3. Reveal Answer (SFX only)
+    if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
+       sfxPlayedRef.current = true;
+       const submission = session.submissions[session.submissions.length-1];
+       const isCorrect = submission?.isCorrect;
+       if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
+    }
+
+    // 4. Reveal Explanation (TTS) - Triggered by separate button
+    if (session.explanationVisible && !explanationPlayedRef.current) {
        explanationPlayedRef.current = true;
        const submission = session.submissions[session.submissions.length-1];
        const isCorrect = submission?.isCorrect;
-
-       if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
-
-       setTimeout(() => {
-         API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
-           if (audio) playAudio(audio, "Synthesis Complete");
-         });
-       }, 1500);
+       
+       API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
+         if (audio) playAudio(audio, "Synthesis Complete");
+       });
     }
 
+    // Reset Refs on new question
     if (session.currentQuestion?.id !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestion?.id || null;
         explanationPlayedRef.current = false;
+        sfxPlayedRef.current = false;
         lastSubmissionCountRef.current = 0; 
     }
     
     lastStatusRef.current = session.status;
     lastSubmissionCountRef.current = session.submissions.length;
-  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length]);
+  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible]);
 
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && !session.isReading) {
@@ -175,9 +185,15 @@ const DisplayView: React.FC = () => {
 
   if (!audioInitialized) {
       return (
-          <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center cursor-pointer" onClick={initAudio}>
-              <Power className="w-16 h-16 text-indigo-400 mb-8 animate-pulse" />
-              <h1 className="text-3xl font-black text-white uppercase tracking-[0.2em]">Initialize Node</h1>
+          <div className="min-h-screen bg-[#020617] flex flex-col items-center justify-center cursor-pointer group" onClick={initAudio}>
+              <div className="absolute inset-0 opacity-20 bg-grid-perspective" />
+              <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-24 h-24 rounded-full border-4 border-indigo-500/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-500 mb-8 shadow-[0_0_50px_rgba(99,102,241,0.4)]">
+                    <Power className="w-10 h-10 text-indigo-400 animate-pulse" />
+                  </div>
+                  <h1 className="text-4xl font-display font-black text-white uppercase tracking-[0.2em] neon-text">Initialize Main Screen</h1>
+                  <p className="mt-4 text-indigo-400 font-mono text-xs tracking-widest">AWAITING NEURAL UPLINK</p>
+              </div>
           </div>
       );
   }
@@ -188,81 +204,193 @@ const DisplayView: React.FC = () => {
     : null;
 
   return (
-    <div className="min-h-screen bg-slate-950 flex overflow-hidden relative font-sans">
-      <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)] z-10" />
+    <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative selection:bg-indigo-500/30 font-sans">
       
-      <div className="relative z-20 w-full h-screen grid grid-cols-12 gap-8 p-12 overflow-hidden">
-        <div className={`transition-all duration-1000 h-full flex flex-col items-center justify-center min-h-[500px] ${
-            !isQuestionVisible ? 'col-span-12' : 'col-span-4'
-        }`}>
-           <AIHostAvatar size="xl" isSpeaking={isSpeaking} commentary={commentary} />
-           {!isQuestionVisible && currentQuestion && (
-              <div className="mt-8 text-center animate-in fade-in zoom-in">
-                 <Badge color="indigo">INCOMING FRAGMENT</Badge>
-                 <h2 className="text-4xl font-black text-white mt-4 uppercase tracking-tighter">{currentQuestion.roundType} ROUND</h2>
-              </div>
-           )}
-        </div>
+      {/* --- STARDUST NEBULA BACKGROUND --- */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-[#020617]">
+          {/* Deep Space Base */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(17,24,39,1)_0%,rgba(2,6,23,1)_100%)]" />
+          
+          {/* Moving Nebula Layers */}
+          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-30 animate-[nebula-drift_60s_infinite_ease-in-out]"
+               style={{ background: 'radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.4), transparent 50%)' }} />
+          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-20 animate-[nebula-drift_45s_infinite_ease-in-out_reverse]"
+               style={{ background: 'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), transparent 40%)' }} />
+          
+          {/* Stars */}
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '100px 100px', opacity: 0.1 }} />
+          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '60px 60px', opacity: 0.15, animation: 'twinkle 4s infinite' }} />
 
-        {isQuestionVisible && (
-          <div className="col-span-8 flex flex-col justify-center space-y-10 animate-in slide-in-from-right duration-700 relative h-full">
-             
-             {(session.status === QuizStatus.LOCKED || (session.status === QuizStatus.LIVE && lockingTeam)) && (
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 animate-in zoom-in duration-300 pointer-events-none w-full max-w-md">
-                    <div className="bg-slate-900/95 border-2 border-indigo-500 p-10 rounded-[3rem] shadow-[0_0_80px_rgba(99,102,241,0.5)] text-center backdrop-blur-2xl">
-                        <LockIcon className="w-16 h-16 text-indigo-400 mx-auto mb-6 animate-pulse" />
-                        <p className="text-slate-400 text-sm font-black uppercase tracking-[0.4em] mb-4">Uplink Secured</p>
-                        <p className="text-5xl font-black text-white uppercase tracking-tight">{lockingTeam?.name}</p>
-                    </div>
-                </div>
-             )}
+          {/* Perspective Grid Overlay */}
+          <div className="absolute inset-0 opacity-10 bg-grid-perspective origin-top h-[200vh] -mt-[50vh] w-full" />
+          
+          {/* Vignette */}
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#020617_90%)]" />
+      </div>
 
-             <div className="flex justify-between items-center">
-                <Badge color={currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>{currentQuestion.roundType} ROUND</Badge>
-                <div className="flex items-center gap-10">
-                   {currentQuestion.roundType === 'STANDARD' && (
-                     <div className="bg-slate-900 border border-slate-700 px-6 py-3 rounded-2xl flex items-center gap-4">
-                        <Clock className="w-5 h-5 text-indigo-400" />
-                        <span className="text-3xl font-black text-white tabular-nums">{turnTimeLeft}s</span>
-                     </div>
-                   )}
-                   <p className="text-4xl font-black text-white italic tracking-tighter">{currentQuestion.points} <span className="text-sm text-slate-500">CREDITS</span></p>
+      {/* --- MAIN CONTENT LAYER (Z-10) --- */}
+      <div className="relative z-10 h-screen flex flex-col p-6 md:p-10 gap-6">
+          
+          {/* HEADER BAR */}
+          <header className="flex justify-between items-start">
+             <div className="flex items-center gap-6 glass-card px-8 py-4 rounded-full">
+                <div className="flex items-center gap-3">
+                   <span className="relative flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                   </span>
+                   <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400">Live Broadcast</span>
                 </div>
+                <div className="h-4 w-[1px] bg-white/10" />
+                <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">
+                    Bodhini Core <span className="text-indigo-500">V3</span>
+                </h1>
              </div>
 
-             <div className="bg-white/[0.03] backdrop-blur-3xl border border-white/10 p-12 rounded-[3.5rem] shadow-2xl relative overflow-hidden flex-grow flex flex-col justify-center">
-                <h2 className="text-5xl font-black text-white leading-tight mb-12 drop-shadow-2xl">{currentQuestion.text}</h2>
+             {/* Dynamic Round Info */}
+             {isQuestionVisible && (
+                 <div className="glass-card px-8 py-4 rounded-full flex items-center gap-8 animate-in slide-in-from-right">
+                     <div className="flex items-center gap-3">
+                        {currentQuestion.roundType === 'BUZZER' ? <Zap className="w-5 h-5 text-amber-400" /> : <Waves className="w-5 h-5 text-indigo-400" />}
+                        <span className="text-xl font-display font-black uppercase tracking-tight">{currentQuestion.roundType} ROUND</span>
+                     </div>
+                     <div className="h-6 w-[1px] bg-white/10" />
+                     <div className="flex items-center gap-2">
+                        <span className="text-2xl font-display font-black text-white">{currentQuestion.points}</span>
+                        <span className="text-xs font-bold uppercase text-slate-500 tracking-wider">Credits</span>
+                     </div>
+                 </div>
+             )}
+          </header>
 
-                <div className="grid grid-cols-1 gap-4">
-                   {currentQuestion.options.map((opt, i) => (
-                      <div key={i} className={`flex items-center gap-8 p-6 rounded-3xl border transition-all duration-500 ${
-                          session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer 
-                          ? 'bg-emerald-500/20 border-emerald-500 shadow-[0_0_40px_rgba(16,185,129,0.2)]' 
-                          : session.status === QuizStatus.REVEALED ? 'opacity-20 border-white/5' : 'bg-white/5 border-white/10'
-                      }`}>
-                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl font-black ${
-                             session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-indigo-600 text-white'
-                         }`}>
-                            {String.fromCharCode(65+i)}
-                         </div>
-                         <span className="text-2xl font-bold tracking-tight text-white">{opt}</span>
-                         {session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer && <CheckCircle2 className="w-8 h-8 text-emerald-500 ml-auto" />}
-                      </div>
-                   ))}
+          {/* MAIN STAGE */}
+          <main className="flex-grow grid grid-cols-12 gap-8 items-stretch">
+             
+             {/* LEFT COMMAND COLUMN (Avatar & Status) */}
+             <div className="col-span-3 flex flex-col gap-6">
+                {/* Avatar Container */}
+                <div className="glass-card rounded-[2.5rem] p-8 flex flex-col items-center justify-center flex-grow relative overflow-hidden group">
+                   <div className="absolute inset-0 bg-gradient-to-b from-indigo-500/5 to-transparent opacity-50" />
+                   <AIHostAvatar size="xl" isSpeaking={isSpeaking} />
+                   
+                   {/* Host Status Subtitles */}
+                   <div className="mt-8 w-full min-h-[80px] text-center relative z-20">
+                      {commentary ? (
+                        <p className="text-indigo-200 text-sm font-medium leading-relaxed animate-in fade-in italic">"{commentary}"</p>
+                      ) : (
+                        <div className="flex justify-center gap-1 mt-4">
+                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                           <span className="w-1.5 h-1.5 bg-indigo-500/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                        </div>
+                      )}
+                   </div>
                 </div>
 
-                {session.status === QuizStatus.REVEALED && (
-                  <div className="mt-10 p-8 bg-indigo-600/10 border-l-8 border-indigo-500 rounded-r-[2rem] animate-in zoom-in duration-700">
-                     <div className="flex items-center gap-3 mb-3">
-                        <Brain className="w-5 h-5 text-indigo-400" />
-                        <span className="text-[9px] font-black uppercase text-indigo-400 tracking-[0.4em]">Neural Summary</span>
-                     </div>
-                     <p className="text-xl font-bold text-slate-200 leading-relaxed italic">"{currentQuestion.explanation}"</p>
+                {/* Team Status / Timer */}
+                {isQuestionVisible && currentQuestion.roundType === 'STANDARD' && (
+                  <div className="glass-card rounded-[2rem] p-6 flex items-center justify-between border-t-4 border-t-indigo-500">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] block mb-1">Time Remaining</span>
+                        <span className="text-4xl font-display font-black text-white tabular-nums">{turnTimeLeft}s</span>
+                      </div>
+                      <Clock className={`w-10 h-10 ${turnTimeLeft < 10 ? 'text-rose-500 animate-pulse' : 'text-indigo-500'}`} />
                   </div>
                 )}
              </div>
-          </div>
-        )}
+
+             {/* RIGHT DATA SLATE (Question & Options) */}
+             <div className="col-span-9 relative">
+                {!isQuestionVisible ? (
+                   <div className="h-full glass-card rounded-[3rem] flex flex-col items-center justify-center text-center p-12 border border-white/5 relative overflow-hidden">
+                       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
+                       <div className="relative z-10 max-w-2xl">
+                          <Brain className="w-32 h-32 text-indigo-500/50 mx-auto mb-12 animate-pulse" />
+                          <h2 className="text-5xl font-display font-black text-white uppercase tracking-tight mb-6">System Standby</h2>
+                          <p className="text-xl text-slate-400 font-light tracking-wide">Waiting for Neural Fragment...</p>
+                       </div>
+                   </div>
+                ) : (
+                   <div className="h-full flex flex-col gap-6 animate-in zoom-in duration-500">
+                      {/* Question Card */}
+                      <div className="glass-card p-12 rounded-[3rem] border-l-[8px] border-l-indigo-500 shadow-[0_0_100px_rgba(79,70,229,0.1)] relative overflow-hidden flex-grow flex items-center">
+                          <div className="absolute top-0 right-0 p-8 opacity-10">
+                             <Brain className="w-48 h-48 text-white rotate-12" />
+                          </div>
+                          <h2 className="relative z-10 text-5xl md:text-6xl font-display font-bold text-white leading-[1.15] tracking-tight drop-shadow-lg">
+                             {currentQuestion.text}
+                          </h2>
+                      </div>
+
+                      {/* Options Grid */}
+                      <div className="grid grid-cols-2 gap-5 h-[40%]">
+                         {currentQuestion.options.map((opt, i) => {
+                            const isRevealed = session.status === QuizStatus.REVEALED;
+                            const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
+                            const isDimmed = isRevealed && !isCorrect;
+                            
+                            return (
+                              <div key={i} className={`
+                                relative overflow-hidden rounded-[2rem] p-8 flex items-center gap-6 border transition-all duration-700
+                                ${isCorrect 
+                                   ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_60px_rgba(16,185,129,0.4)] scale-[1.02] z-20' 
+                                   : isDimmed 
+                                     ? 'bg-slate-900/40 border-white/5 opacity-30 grayscale' 
+                                     : 'glass-card border-white/10 hover:bg-white/5'
+                                }
+                              `}>
+                                 <div className={`
+                                    w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-display font-black shrink-0
+                                    ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}
+                                 `}>
+                                    {String.fromCharCode(65+i)}
+                                 </div>
+                                 <span className={`text-3xl font-bold tracking-tight ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                    {opt}
+                                 </span>
+                                 {isCorrect && (
+                                     <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                                        <ShieldCheck className="w-10 h-10 text-white animate-bounce" />
+                                     </div>
+                                 )}
+                              </div>
+                            );
+                         })}
+                      </div>
+                   </div>
+                )}
+
+                {/* --- OVERLAYS --- */}
+
+                {/* Locked State Overlay */}
+                {(session.status === QuizStatus.LOCKED || lockingTeam) && !session.submissions.find(s => s.teamId === activeTeam?.id)?.isCorrect && (
+                   <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-in zoom-in duration-300">
+                      <div className="bg-slate-950/90 backdrop-blur-xl border border-indigo-500/50 p-16 rounded-[4rem] text-center shadow-[0_0_150px_rgba(79,70,229,0.5)] max-w-2xl transform scale-110">
+                         <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(99,102,241,0.6)]">
+                            <LockIcon className="w-10 h-10 text-white" />
+                         </div>
+                         <p className="text-indigo-300 text-sm font-black uppercase tracking-[0.5em] mb-4">Transmission Received</p>
+                         <h3 className="text-6xl font-display font-black text-white uppercase neon-text tracking-tighter">
+                            {lockingTeam?.name || "LOCKED"}
+                         </h3>
+                      </div>
+                   </div>
+                )}
+
+                {/* Explanation / Success Overlay (Bottom Slide) - ONLY SHOW IF EXPLANATION VISIBLE */}
+                {session.explanationVisible && (
+                   <div className="absolute bottom-6 left-6 right-6 z-40 bg-[#0f172a] border-t-4 border-emerald-500 rounded-3xl p-8 shadow-2xl animate-in slide-in-from-bottom duration-700 flex items-start gap-6">
+                      <div className="bg-emerald-500/10 p-4 rounded-2xl">
+                         <Sparkles className="w-8 h-8 text-emerald-400" />
+                      </div>
+                      <div>
+                         <h4 className="text-xs font-black uppercase text-emerald-500 tracking-[0.3em] mb-2">Neural Analysis Complete</h4>
+                         <p className="text-xl font-medium text-slate-200 leading-relaxed">"{currentQuestion.explanation}"</p>
+                      </div>
+                   </div>
+                )}
+             </div>
+          </main>
       </div>
     </div>
   );

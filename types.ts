@@ -15,7 +15,7 @@ export interface Question {
   text: string;
   options: string[];
   correctAnswer: number;
-  explanation: string; // Added explanation field
+  explanation: string;
   points: number;
   timeLimit: number;
   roundType: RoundType;
@@ -41,7 +41,7 @@ export interface Submission {
 
 export interface QuizSession {
   id: string;
-  currentQuestion: Question | null; // Store full question object as it is dynamic
+  currentQuestion: Question | null;
   status: QuizStatus;
   startTime?: number;
   turnStartTime?: number;
@@ -49,7 +49,8 @@ export interface QuizSession {
   passedTeamIds: string[];
   requestedHint: boolean;
   hintVisible: boolean;
-  nextRoundType: RoundType; // Added to handle alternation
+  explanationVisible: boolean; // New flag for separate explanation reveal
+  nextRoundType: RoundType;
   teams: Team[];
   submissions: Submission[];
   isReading?: boolean;

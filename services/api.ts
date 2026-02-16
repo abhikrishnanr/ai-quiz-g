@@ -3,7 +3,6 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
 import { QuizService } from './mockBackend';
 
-// Fix: Strictly follow initialization guidelines and use process.env.API_KEY directly as a named parameter
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const QUEUE_DELAY_MS = 250; 
@@ -40,7 +39,6 @@ const processQueue = async () => {
   const { text, resolve } = requestQueue.shift()!;
   
   try {
-    // Fix: Using generateContent for text-to-speech task with correct model name
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: text }] }],
@@ -54,7 +52,6 @@ const processQueue = async () => {
       },
     });
 
-    // Fix: Accessing audio data from the response part property correctly
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (base64Audio) {
       const cacheKey = text.trim().toLowerCase();
@@ -78,6 +75,7 @@ export const API = {
   fetchSession: async (): Promise<QuizSession> => QuizService.getSession(),
   updateSessionStatus: async (status: QuizStatus): Promise<QuizSession> => QuizService.updateStatus(status),
   revealAnswerAndProcessScores: async (): Promise<QuizSession> => QuizService.revealAndScore(),
+  revealExplanation: async (): Promise<QuizSession> => QuizService.revealExplanation(),
   resetSession: async (): Promise<QuizSession> => QuizService.resetSession(),
   completeReading: async (): Promise<QuizSession> => QuizService.completeReading(),
   requestHint: async (teamId: string): Promise<QuizSession> => QuizService.requestHint(teamId),
@@ -90,7 +88,6 @@ export const API = {
     const nextRound = session.nextRoundType;
 
     try {
-      // Fix: Using 'gemini-3-pro-preview' for complex reasoning task (quiz generation) as per model selection guidelines
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
         contents: `Generate a multiple-choice quiz question about Artificial Intelligence. Round type: ${nextRound}.`,
@@ -119,7 +116,6 @@ export const API = {
         }
       });
 
-      // Fix: Using response.text property (not a method) to extract string output
       const data = JSON.parse(response.text || '{}');
       const question: Question = {
         id: `gemini_${Date.now()}`,
@@ -158,6 +154,6 @@ export const API = {
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
-    return `${isCorrect ? "Correct." : "Incorrect."} ${explanation}`;
+    return `${explanation}`;
   }
 };

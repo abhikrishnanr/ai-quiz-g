@@ -169,6 +169,26 @@ const AdminView: React.FC = () => {
                 </button>
               </div>
 
+              {/* Explicit Explanation Reveal Button */}
+              {session.status === QuizStatus.REVEALED && (
+                 <div className="px-8 pt-4 pb-0 flex justify-end">
+                    <button
+                      onClick={() => performAction(API.revealExplanation)}
+                      disabled={session.explanationVisible}
+                      className={`flex items-center gap-3 px-8 py-4 rounded-2xl border transition-all ${
+                         session.explanationVisible 
+                         ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 cursor-default' 
+                         : 'bg-indigo-600 border-indigo-500 text-white shadow-lg hover:bg-indigo-500 hover:scale-105'
+                      }`}
+                    >
+                       <Sparkles className="w-5 h-5" />
+                       <span className="font-black uppercase tracking-widest text-xs">
+                         {session.explanationVisible ? 'Explanation Live' : 'Broadcast Explanation'}
+                       </span>
+                    </button>
+                 </div>
+              )}
+
               <div className="p-12 min-h-[500px] relative">
                 {session.currentQuestion ? (
                   <div className="space-y-12 animate-in slide-in-from-bottom-8">
@@ -207,7 +227,7 @@ const AdminView: React.FC = () => {
                       ))}
                     </div>
 
-                    {session.status === QuizStatus.REVEALED && (
+                    {session.explanationVisible && (
                       <div className="p-8 bg-indigo-600/10 border-l-4 border-indigo-500 rounded-r-3xl animate-in zoom-in">
                         <h4 className="text-[10px] font-black uppercase text-indigo-400 mb-3 tracking-[0.3em]">Knowledge Synthesis</h4>
                         <p className="text-lg font-bold text-slate-200 leading-relaxed italic">"{session.currentQuestion.explanation}"</p>

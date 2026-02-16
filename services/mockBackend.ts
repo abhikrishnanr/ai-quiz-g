@@ -16,6 +16,7 @@ const DEFAULT_SESSION: QuizSession = {
   passedTeamIds: [],
   requestedHint: false,
   hintVisible: false,
+  explanationVisible: false,
   nextRoundType: 'STANDARD',
   activeTeamId: null,
   turnStartTime: 0,
@@ -100,6 +101,7 @@ export const QuizService = {
     session.passedTeamIds = [];
     session.requestedHint = false;
     session.hintVisible = false;
+    session.explanationVisible = false; // Reset explanation
     session.isReading = false;
     
     // Toggle next round type for next time
@@ -157,10 +159,20 @@ export const QuizService = {
     return session;
   },
 
+  // New method to reveal explanation explicitly
+  revealExplanation: async (): Promise<QuizSession> => {
+    let session = loadSession();
+    session.explanationVisible = true;
+    saveSession(session);
+    return session;
+  },
+
   revealAndScore: async (): Promise<QuizSession> => {
     let session = loadSession();
     session.status = QuizStatus.REVEALED;
     session.isReading = false;
+    session.explanationVisible = false; // Ensure it stays hidden initially
+    
     const currentQuestion = session.currentQuestion;
     if (!currentQuestion) return session;
 
