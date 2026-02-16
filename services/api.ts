@@ -100,7 +100,7 @@ export const API = {
     const nextRound = session.nextRoundType;
 
     try {
-      const response = await fetch('https://9fbmqx89rf.execute-api.us-east-1.amazonaws.com/prod/quiz', {
+      const response = await fetch('https://yzkb3thuf4.execute-api.us-east-1.amazonaws.com/prod/quiz', {
         method: 'POST',
       });
       const data = await response.json();
