@@ -39,14 +39,15 @@ const processQueue = async () => {
   const { text, resolve } = requestQueue.shift()!;
   
   try {
+    // Ensuring the latest Gemini 2.5 TTS model is used
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: text }] }],
+      contents: [{ parts: [{ text: `In a clear, professional, and helpful tone: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
+            prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore is used for high-quality neutral-female output
           },
         },
       },

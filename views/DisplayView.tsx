@@ -68,7 +68,7 @@ const DisplayView: React.FC = () => {
     
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Identity verified. Bodhini Core Online. Welcome to the Digital University AI Quiz Platform.";
+        const introText = "System ready. Bodhini Core Online. I am your neural architect for today's session.";
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
                 if (audio) playAudio(audio, "Bodhini Core Online");
@@ -106,7 +106,6 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
-    // 1. New Question LIVE
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        const audioKey = `read_${currentQuestion.id}`;
@@ -124,20 +123,18 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // 2. Lock Answer
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
        if (team && audioInitialized) { 
            SFX.playLock();
-           const lockText = `Answer locked by ${team.name}.`;
+           const lockText = `Transmission received from ${team.name}.`;
            API.getTTSAudio(lockText).then(audio => {
-                if (audio) playAudio(audio, `Locked by ${team.name}`);
+                if (audio) playAudio(audio, `Answer locked by ${team.name}`);
            });
        }
     }
 
-    // 3. Reveal Answer (SFX only)
     if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
        sfxPlayedRef.current = true;
        const submission = session.submissions[session.submissions.length-1];
@@ -145,18 +142,16 @@ const DisplayView: React.FC = () => {
        if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
     }
 
-    // 4. Reveal Explanation (TTS) - Triggered by separate button
     if (session.explanationVisible && !explanationPlayedRef.current) {
        explanationPlayedRef.current = true;
        const submission = session.submissions[session.submissions.length-1];
        const isCorrect = submission?.isCorrect;
        
        API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation, isCorrect)).then(audio => {
-         if (audio) playAudio(audio, "Synthesis Complete");
+         if (audio) playAudio(audio, "Neural Synthesis Complete");
        });
     }
 
-    // Reset Refs on new question
     if (session.currentQuestion?.id !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestion?.id || null;
         explanationPlayedRef.current = false;
@@ -208,48 +203,35 @@ const DisplayView: React.FC = () => {
       
       {/* --- STARDUST NEBULA BACKGROUND --- */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none bg-[#020617]">
-          {/* Deep Space Base */}
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(17,24,39,1)_0%,rgba(2,6,23,1)_100%)]" />
-          
-          {/* Moving Nebula Layers */}
-          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-30 animate-[nebula-drift_60s_infinite_ease-in-out]"
-               style={{ background: 'radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.4), transparent 50%)' }} />
-          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-20 animate-[nebula-drift_45s_infinite_ease-in-out_reverse]"
-               style={{ background: 'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.3), transparent 40%)' }} />
-          
-          {/* Stars */}
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '100px 100px', opacity: 0.1 }} />
-          <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(white 1px, transparent 1px)', backgroundSize: '60px 60px', opacity: 0.15, animation: 'twinkle 4s infinite' }} />
-
-          {/* Perspective Grid Overlay */}
+          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-20 animate-[nebula-drift_60s_infinite_ease-in-out]"
+               style={{ background: 'radial-gradient(circle at 50% 50%, rgba(79, 70, 229, 0.3), transparent 60%)' }} />
+          <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] opacity-15 animate-[nebula-drift_45s_infinite_ease-in-out_reverse]"
+               style={{ background: 'radial-gradient(circle at 70% 30%, rgba(236, 72, 153, 0.2), transparent 50%)' }} />
           <div className="absolute inset-0 opacity-10 bg-grid-perspective origin-top h-[200vh] -mt-[50vh] w-full" />
-          
-          {/* Vignette */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#020617_90%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#020617_95%)]" />
       </div>
 
-      {/* --- MAIN CONTENT LAYER (Z-10) --- */}
+      {/* --- MAIN CONTENT LAYER --- */}
       <div className="relative z-10 h-screen flex flex-col p-6 md:p-10 gap-6">
           
-          {/* HEADER BAR */}
           <header className="flex justify-between items-start">
-             <div className="flex items-center gap-6 glass-card px-8 py-4 rounded-full">
+             <div className="flex items-center gap-6 glass-card px-8 py-4 rounded-full border-white/5 bg-white/5">
                 <div className="flex items-center gap-3">
                    <span className="relative flex h-3 w-3">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
                    </span>
-                   <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400">Live Broadcast</span>
+                   <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400 font-display">Live Link</span>
                 </div>
                 <div className="h-4 w-[1px] bg-white/10" />
                 <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">
-                    Bodhini Core <span className="text-indigo-500">V3</span>
+                    Bodhini Core <span className="text-indigo-500">2.5</span>
                 </h1>
              </div>
 
-             {/* Dynamic Round Info */}
              {isQuestionVisible && (
-                 <div className="glass-card px-8 py-4 rounded-full flex items-center gap-8 animate-in slide-in-from-right">
+                 <div className="glass-card px-8 py-4 rounded-full flex items-center gap-8 border-white/5 bg-white/5 animate-in slide-in-from-right">
                      <div className="flex items-center gap-3">
                         {currentQuestion.roundType === 'BUZZER' ? <Zap className="w-5 h-5 text-amber-400" /> : <Waves className="w-5 h-5 text-indigo-400" />}
                         <span className="text-xl font-display font-black uppercase tracking-tight">{currentQuestion.roundType} ROUND</span>
@@ -263,69 +245,60 @@ const DisplayView: React.FC = () => {
              )}
           </header>
 
-          {/* MAIN STAGE */}
-          <main className="flex-grow grid grid-cols-12 gap-8 items-stretch">
+          <main className="flex-grow grid grid-cols-12 gap-12 items-stretch">
              
-             {/* LEFT COMMAND COLUMN (Avatar & Status) */}
-             <div className="col-span-3 flex flex-col gap-8 justify-center">
-                {/* Avatar Container - Removed card styling */}
-                <div className="flex flex-col items-center justify-center flex-grow relative z-10">
+             {/* LEFT COLUMN: FLOATING AVATAR */}
+             <div className="col-span-4 flex flex-col justify-center items-center">
+                <div className="relative z-10 w-full flex flex-col items-center">
                    <AIHostAvatar size="xl" isSpeaking={isSpeaking} />
                    
-                   {/* Subtitles (Text below Avatar) */}
-                   <div className="mt-8 w-full min-h-[100px] flex items-center justify-center">
+                   <div className="mt-12 w-full min-h-[120px] flex items-center justify-center">
                       {commentary ? (
-                        <div className="bg-slate-950/70 backdrop-blur-md border border-white/10 px-6 py-4 rounded-2xl animate-in fade-in slide-in-from-bottom-2 text-center shadow-xl max-w-sm">
-                           <p className="text-indigo-200 text-lg font-medium leading-relaxed font-sans italic">"{commentary}"</p>
+                        <div className="bg-slate-950/40 backdrop-blur-xl border border-white/5 px-10 py-6 rounded-[2rem] animate-in fade-in slide-in-from-bottom-4 text-center shadow-2xl max-w-md">
+                           <p className="text-indigo-100 text-xl font-sans font-medium leading-relaxed italic tracking-wide">"{commentary}"</p>
                         </div>
                       ) : (
-                         <div className="flex gap-2 opacity-30">
-                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" />
-                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.1s]" />
-                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:0.2s]" />
+                         <div className="flex gap-3 opacity-20">
+                           <div className="w-3 h-3 rounded-full bg-white animate-bounce" />
+                           <div className="w-3 h-3 rounded-full bg-white animate-bounce [animation-delay:0.15s]" />
+                           <div className="w-3 h-3 rounded-full bg-white animate-bounce [animation-delay:0.3s]" />
                          </div>
                       )}
                    </div>
                 </div>
 
-                {/* Team Status / Timer */}
                 {isQuestionVisible && currentQuestion.roundType === 'STANDARD' && (
-                  <div className="glass-card rounded-[2rem] p-6 flex items-center justify-between border-t-4 border-t-indigo-500">
+                  <div className="mt-auto glass-card rounded-[2.5rem] px-10 py-8 flex items-center justify-between border-white/5 bg-white/5 w-full">
                       <div>
-                        <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.2em] block mb-1">Time Remaining</span>
-                        <span className="text-4xl font-display font-black text-white tabular-nums">{turnTimeLeft}s</span>
+                        <span className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.4em] block mb-2 font-display">Neural TTL</span>
+                        <span className="text-5xl font-display font-black text-white tabular-nums">{turnTimeLeft}s</span>
                       </div>
-                      <Clock className={`w-10 h-10 ${turnTimeLeft < 10 ? 'text-rose-500 animate-pulse' : 'text-indigo-500'}`} />
+                      <Clock className={`w-12 h-12 ${turnTimeLeft < 10 ? 'text-rose-500 animate-pulse' : 'text-indigo-400'}`} />
                   </div>
                 )}
              </div>
 
-             {/* RIGHT DATA SLATE (Question & Options) */}
-             <div className="col-span-9 relative">
+             {/* RIGHT COLUMN: DATA SLATE */}
+             <div className="col-span-8 relative">
                 {!isQuestionVisible ? (
-                   <div className="h-full glass-card rounded-[3rem] flex flex-col items-center justify-center text-center p-12 border border-white/5 relative overflow-hidden">
-                       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20" />
-                       <div className="relative z-10 max-w-2xl">
-                          <Brain className="w-32 h-32 text-indigo-500/50 mx-auto mb-12 animate-pulse" />
-                          <h2 className="text-5xl font-display font-black text-white uppercase tracking-tight mb-6">System Standby</h2>
-                          <p className="text-xl text-slate-400 font-light tracking-wide">Waiting for Neural Fragment...</p>
-                       </div>
+                   <div className="h-full glass-card rounded-[4rem] border-white/5 bg-white/5 flex flex-col items-center justify-center text-center p-20 relative overflow-hidden">
+                       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10" />
+                       <Brain className="w-40 h-40 text-indigo-500/20 mb-12 animate-pulse" />
+                       <h2 className="text-6xl font-display font-black text-white uppercase tracking-tight mb-8">Ready For Uplink</h2>
+                       <p className="text-2xl text-slate-500 font-sans font-light tracking-widest uppercase">Awaiting admin prompt...</p>
                    </div>
                 ) : (
-                   <div className="h-full flex flex-col gap-6 animate-in zoom-in duration-500">
-                      {/* Question Card */}
-                      <div className="glass-card p-12 rounded-[3rem] border-l-[8px] border-l-indigo-500 shadow-[0_0_100px_rgba(79,70,229,0.1)] relative overflow-hidden flex-grow flex items-center">
-                          <div className="absolute top-0 right-0 p-8 opacity-10">
-                             <Brain className="w-48 h-48 text-white rotate-12" />
+                   <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
+                      <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-indigo-600 border-white/5 bg-white/5 shadow-2xl relative overflow-hidden flex-grow flex items-center">
+                          <div className="absolute -top-10 -right-10 opacity-5">
+                             <Brain className="w-80 h-80 text-white rotate-12" />
                           </div>
-                          {/* UPDATED: Uses font-sans and leading-relaxed for better readability */}
-                          <h2 className="relative z-10 text-4xl md:text-5xl lg:text-6xl font-sans font-bold text-white leading-relaxed tracking-wide drop-shadow-lg">
+                          <h2 className="relative z-10 text-5xl md:text-6xl lg:text-7xl font-sans font-bold text-white leading-[1.4] tracking-wide drop-shadow-2xl">
                              {currentQuestion.text}
                           </h2>
                       </div>
 
-                      {/* Options Grid */}
-                      <div className="grid grid-cols-2 gap-5 h-[40%]">
+                      <div className="grid grid-cols-2 gap-8 h-[40%]">
                          {currentQuestion.options.map((opt, i) => {
                             const isRevealed = session.status === QuizStatus.REVEALED;
                             const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
@@ -333,27 +306,26 @@ const DisplayView: React.FC = () => {
                             
                             return (
                               <div key={i} className={`
-                                relative overflow-hidden rounded-[2rem] p-8 flex items-center gap-6 border transition-all duration-700
+                                relative overflow-hidden rounded-[3rem] p-10 flex items-center gap-10 border transition-all duration-700
                                 ${isCorrect 
-                                   ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_60px_rgba(16,185,129,0.4)] scale-[1.02] z-20' 
+                                   ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_80px_rgba(16,185,129,0.5)] scale-[1.03] z-20' 
                                    : isDimmed 
-                                     ? 'bg-slate-900/40 border-white/5 opacity-30 grayscale' 
-                                     : 'glass-card border-white/10 hover:bg-white/5'
+                                     ? 'bg-slate-900/60 border-white/5 opacity-20 grayscale' 
+                                     : 'glass-card border-white/10 bg-white/5 hover:bg-white/10'
                                 }
                               `}>
                                  <div className={`
-                                    w-14 h-14 rounded-xl flex items-center justify-center text-2xl font-display font-black shrink-0
+                                    w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shrink-0
                                     ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}
                                  `}>
                                     {String.fromCharCode(65+i)}
                                  </div>
-                                 {/* UPDATED: Uses font-sans and leading-normal */}
-                                 <span className={`text-2xl md:text-3xl font-sans font-semibold leading-normal tracking-wide ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                 <span className={`text-3xl md:text-4xl font-sans font-semibold leading-relaxed tracking-wide ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
                                     {opt}
                                  </span>
                                  {isCorrect && (
-                                     <div className="absolute right-6 top-1/2 -translate-y-1/2">
-                                        <ShieldCheck className="w-10 h-10 text-white animate-bounce" />
+                                     <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                                        <ShieldCheck className="w-12 h-12 text-white animate-bounce" />
                                      </div>
                                  )}
                               </div>
@@ -363,32 +335,29 @@ const DisplayView: React.FC = () => {
                    </div>
                 )}
 
-                {/* --- OVERLAYS --- */}
-
-                {/* Locked State Overlay */}
+                {/* --- SYSTEM OVERLAYS --- */}
                 {(session.status === QuizStatus.LOCKED || lockingTeam) && !session.submissions.find(s => s.teamId === activeTeam?.id)?.isCorrect && (
                    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-in zoom-in duration-300">
-                      <div className="bg-slate-950/90 backdrop-blur-xl border border-indigo-500/50 p-16 rounded-[4rem] text-center shadow-[0_0_150px_rgba(79,70,229,0.5)] max-w-2xl transform scale-110">
-                         <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_40px_rgba(99,102,241,0.6)]">
-                            <LockIcon className="w-10 h-10 text-white" />
+                      <div className="bg-slate-950/95 backdrop-blur-2xl border border-indigo-500/50 p-20 rounded-[5rem] text-center shadow-[0_0_200px_rgba(79,70,229,0.6)] max-w-3xl transform scale-110">
+                         <div className="w-28 h-28 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-10 shadow-[0_0_60px_rgba(99,102,241,0.7)]">
+                            <LockIcon className="w-12 h-12 text-white" />
                          </div>
-                         <p className="text-indigo-300 text-sm font-black uppercase tracking-[0.5em] mb-4">Transmission Received</p>
-                         <h3 className="text-6xl font-display font-black text-white uppercase neon-text tracking-tighter">
+                         <p className="text-indigo-400 text-sm font-black uppercase tracking-[0.6em] mb-6 font-display">System Intercept</p>
+                         <h3 className="text-7xl font-display font-black text-white uppercase neon-text tracking-tighter">
                             {lockingTeam?.name || "LOCKED"}
                          </h3>
                       </div>
                    </div>
                 )}
 
-                {/* Explanation / Success Overlay (Bottom Slide) - ONLY SHOW IF EXPLANATION VISIBLE */}
                 {session.explanationVisible && (
-                   <div className="absolute bottom-6 left-6 right-6 z-40 bg-[#0f172a] border-t-4 border-emerald-500 rounded-3xl p-8 shadow-2xl animate-in slide-in-from-bottom duration-700 flex items-start gap-6">
-                      <div className="bg-emerald-500/10 p-4 rounded-2xl">
-                         <Sparkles className="w-8 h-8 text-emerald-400" />
+                   <div className="absolute bottom-8 left-8 right-8 z-40 bg-slate-950/90 border-t-[6px] border-emerald-500 rounded-[3rem] p-12 shadow-[0_-20px_100px_rgba(0,0,0,0.8)] animate-in slide-in-from-bottom duration-1000 flex items-start gap-10">
+                      <div className="bg-emerald-500/10 p-6 rounded-3xl shrink-0">
+                         <Sparkles className="w-10 h-10 text-emerald-400" />
                       </div>
                       <div>
-                         <h4 className="text-xs font-black uppercase text-emerald-500 tracking-[0.3em] mb-2">Neural Analysis Complete</h4>
-                         <p className="text-xl font-medium text-slate-200 leading-relaxed font-sans">"{currentQuestion.explanation}"</p>
+                         <h4 className="text-xs font-black uppercase text-emerald-500 tracking-[0.4em] mb-4 font-display">Knowledge Synthesis Complete</h4>
+                         <p className="text-2xl font-sans font-medium text-slate-100 leading-[1.8]">"{currentQuestion.explanation}"</p>
                       </div>
                    </div>
                 )}
