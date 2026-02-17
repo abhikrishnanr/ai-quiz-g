@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
-import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty } from '../types';
+import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty, AskAiState } from '../types';
 import { QuizService } from './mockBackend';
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -39,7 +39,6 @@ const processQueue = async () => {
   const { text, resolve } = requestQueue.shift()!;
   
   try {
-    // Ensuring the latest Gemini 2.5 TTS model is used
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
       contents: [{ parts: [{ text: `In a clear, professional, and helpful tone: ${text}` }] }],
@@ -47,7 +46,7 @@ const processQueue = async () => {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' }, // Kore is used for high-quality neutral-female output
+            prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
       },
@@ -83,10 +82,32 @@ export const API = {
   toggleHint: async (visible: boolean): Promise<QuizSession> => QuizService.toggleHintVisibility(visible),
   submitTeamAnswer: async (teamId: string, qId: string, ans?: number, type: SubmissionType = 'ANSWER'): Promise<Submission> => QuizService.submitAnswer(teamId, qId, ans, type),
 
+  setRoundMode: async (type: RoundType): Promise<QuizSession> => {
+    await QuizService.setNextRoundType(type);
+    return API.generateQuestion();
+  },
+
   generateQuestion: async (): Promise<QuizSession> => {
     if (!process.env.API_KEY) throw new Error("API Key missing");
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
+
+    // IF Next round is ASK_AI, we don't generate a question text, we just initialize the round structure
+    if (nextRound === 'ASK_AI') {
+        const dummyQuestion: Question = {
+            id: `ask_ai_${Date.now()}`,
+            text: "Ask the AI Round",
+            options: [],
+            correctAnswer: -1,
+            explanation: "",
+            points: 200, // Bonus points if AI fails
+            timeLimit: 60,
+            roundType: 'ASK_AI',
+            difficulty: 'HARD',
+            hint: ''
+        };
+        return QuizService.injectDynamicQuestion(dummyQuestion);
+    }
 
     try {
       const response = await ai.models.generateContent({
@@ -150,11 +171,57 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
+    if (question.roundType === 'ASK_AI') {
+        return `Ask the AI Round initiated. ${activeTeamName ? activeTeamName + ', please activate your microphone.' : 'Prepare your queries.'}`;
+    }
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
     return `${question.text} Options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
     return `${explanation}`;
+  },
+
+  // Ask AI Specifics
+  setAskAiState: async (state: AskAiState): Promise<QuizSession> => {
+      return QuizService.setAskAiState(state);
+  },
+
+  submitAskAiQuestion: async (questionText: string): Promise<QuizSession> => {
+      await QuizService.setAskAiState('PROCESSING', { question: questionText });
+      return API.generateAskAiResponse(questionText);
+  },
+
+  generateAskAiResponse: async (userQuestion: string): Promise<QuizSession> => {
+    if (!process.env.API_KEY) throw new Error("API Key missing");
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-3-flash-preview",
+            contents: `
+                User Question: "${userQuestion}"
+                
+                System Instruction:
+                You are a participant in a quiz show.
+                ALLOWED DOMAINS: AI & ML, Blockchain, Data Science, Cyber Security, Robotics + IoT, Digital India, Tech Innovations.
+                
+                Rules:
+                1. If the User Question is NOT within the ALLOWED DOMAINS, respond EXACTLY with:
+                   "Sorry, that question is out of the allowed domain for this round. Please ask within AI/ML, Blockchain, Data Science, Cyber Security, Robotics + IoT, Digital India, or Tech Innovations."
+                2. If the question IS within domain, answer it concisely (max 2 sentences).
+                3. Do not be conversational, just give the answer.
+            `,
+        });
+
+        const aiText = response.text || "Unable to generate response.";
+        return QuizService.setAskAiState('ANSWERING', { response: aiText });
+    } catch (e) {
+        console.error("Ask AI Gen Failed", e);
+        return QuizService.setAskAiState('ANSWERING', { response: "I am experiencing network interference. Please try again." });
+    }
+  },
+
+  judgeAskAi: async (verdict: 'AI_CORRECT' | 'AI_WRONG'): Promise<QuizSession> => {
+      return QuizService.judgeAskAi(verdict);
   }
 };

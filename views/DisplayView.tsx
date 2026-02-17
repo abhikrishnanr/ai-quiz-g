@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
 import { Badge } from '../components/SharedUI';
-import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck } from 'lucide-react';
+import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
 function decodeBase64(base64: string) {
@@ -50,6 +50,9 @@ const DisplayView: React.FC = () => {
   const sfxPlayedRef = useRef<boolean>(false);
   const introPlayedRef = useRef<boolean>(false);
   
+  // Ask AI State Refs
+  const lastAskAiStateRef = useRef<string | null>(null);
+
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const audioCacheRef = useRef<Record<string, string>>({});
@@ -126,7 +129,7 @@ const DisplayView: React.FC = () => {
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
-       if (team && audioInitialized) { 
+       if (team && audioInitialized && currentQuestion.roundType !== 'ASK_AI') { 
            SFX.playLock();
            const lockText = `Transmission received from ${team.name}.`;
            API.getTTSAudio(lockText).then(audio => {
@@ -137,9 +140,21 @@ const DisplayView: React.FC = () => {
 
     if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
        sfxPlayedRef.current = true;
-       const submission = session.submissions[session.submissions.length-1];
-       const isCorrect = submission?.isCorrect;
-       if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
+       if (currentQuestion.roundType !== 'ASK_AI') {
+            const submission = session.submissions[session.submissions.length-1];
+            const isCorrect = submission?.isCorrect;
+            if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
+       }
+    }
+
+    // Ask AI Specific Effect
+    if (currentQuestion.roundType === 'ASK_AI' && session.askAiState !== lastAskAiStateRef.current) {
+        if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) {
+             API.getTTSAudio(session.currentAskAiResponse).then(audio => {
+                 if (audio) playAudio(audio, session.currentAskAiResponse);
+             });
+        }
+        lastAskAiStateRef.current = session.askAiState;
     }
 
     if (session.explanationVisible && !explanationPlayedRef.current) {
@@ -157,11 +172,12 @@ const DisplayView: React.FC = () => {
         explanationPlayedRef.current = false;
         sfxPlayedRef.current = false;
         lastSubmissionCountRef.current = 0; 
+        lastAskAiStateRef.current = 'IDLE';
     }
     
     lastStatusRef.current = session.status;
     lastSubmissionCountRef.current = session.submissions.length;
-  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible]);
+  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible, session?.askAiState]);
 
   useEffect(() => {
     if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && !session.isReading) {
@@ -233,8 +249,10 @@ const DisplayView: React.FC = () => {
              {isQuestionVisible && (
                  <div className="glass-card px-8 py-4 rounded-full flex items-center gap-8 border-white/5 bg-white/5 animate-in slide-in-from-right">
                      <div className="flex items-center gap-3">
-                        {currentQuestion.roundType === 'BUZZER' ? <Zap className="w-5 h-5 text-amber-400" /> : <Waves className="w-5 h-5 text-indigo-400" />}
-                        <span className="text-xl font-display font-black uppercase tracking-tight">{currentQuestion.roundType} ROUND</span>
+                        {currentQuestion.roundType === 'BUZZER' ? <Zap className="w-5 h-5 text-amber-400" /> : 
+                         currentQuestion.roundType === 'ASK_AI' ? <Brain className="w-5 h-5 text-purple-400" /> :
+                         <Waves className="w-5 h-5 text-indigo-400" />}
+                        <span className="text-xl font-display font-black uppercase tracking-tight">{currentQuestion.roundType.replace('_', ' ')} ROUND</span>
                      </div>
                      <div className="h-6 w-[1px] bg-white/10" />
                      <div className="flex items-center gap-2">
@@ -288,51 +306,117 @@ const DisplayView: React.FC = () => {
                        <p className="text-2xl text-slate-500 font-sans font-light tracking-widest uppercase">Awaiting admin prompt...</p>
                    </div>
                 ) : (
-                   <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
-                      <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-indigo-600 border-white/5 bg-white/5 shadow-2xl relative overflow-hidden flex-grow flex items-center">
-                          <div className="absolute -top-10 -right-10 opacity-5">
-                             <Brain className="w-80 h-80 text-white rotate-12" />
-                          </div>
-                          <h2 className="relative z-10 text-5xl md:text-6xl lg:text-7xl font-sans font-bold text-white leading-[1.4] tracking-wide drop-shadow-2xl">
-                             {currentQuestion.text}
-                          </h2>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-8 h-[40%]">
-                         {currentQuestion.options.map((opt, i) => {
-                            const isRevealed = session.status === QuizStatus.REVEALED;
-                            const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
-                            const isDimmed = isRevealed && !isCorrect;
-                            
-                            return (
-                              <div key={i} className={`
-                                relative overflow-hidden rounded-[3rem] p-10 flex items-center gap-10 border transition-all duration-700
-                                ${isCorrect 
-                                   ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_80px_rgba(16,185,129,0.5)] scale-[1.03] z-20' 
-                                   : isDimmed 
-                                     ? 'bg-slate-900/60 border-white/5 opacity-20 grayscale' 
-                                     : 'glass-card border-white/10 bg-white/5 hover:bg-white/10'
-                                }
-                              `}>
-                                 <div className={`
-                                    w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shrink-0
-                                    ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}
-                                 `}>
-                                    {String.fromCharCode(65+i)}
-                                 </div>
-                                 <span className={`text-3xl md:text-4xl font-sans font-semibold leading-relaxed tracking-wide ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
-                                    {opt}
-                                 </span>
-                                 {isCorrect && (
-                                     <div className="absolute right-10 top-1/2 -translate-y-1/2">
-                                        <ShieldCheck className="w-12 h-12 text-white animate-bounce" />
+                    currentQuestion.roundType === 'ASK_AI' ? (
+                        // --- ASK AI DISPLAY LOGIC ---
+                        <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
+                             {/* Phase 1: Listening / Idle */}
+                             {session.askAiState === 'IDLE' || session.askAiState === 'LISTENING' ? (
+                                 <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-purple-600 border-white/5 bg-white/5 shadow-2xl relative overflow-hidden flex-grow flex flex-col items-center justify-center text-center">
+                                     <div className="mb-12">
+                                         <Badge color="blue">Active Node: {activeTeam?.name}</Badge>
                                      </div>
-                                 )}
-                              </div>
-                            );
-                         })}
-                      </div>
-                   </div>
+                                     {session.askAiState === 'LISTENING' ? (
+                                        <>
+                                            <div className="relative">
+                                                <div className="absolute inset-0 bg-purple-500/30 rounded-full animate-ping" />
+                                                <div className="w-32 h-32 rounded-full bg-purple-600/20 flex items-center justify-center mb-8 relative z-10 border border-purple-500/50 shadow-[0_0_50px_rgba(168,85,247,0.4)]">
+                                                    <Mic className="w-16 h-16 text-purple-400" />
+                                                </div>
+                                            </div>
+                                            <h2 className="text-5xl font-black text-white uppercase animate-pulse">Awaiting Voice Input...</h2>
+                                        </>
+                                     ) : (
+                                         <h2 className="text-4xl font-black text-slate-400 uppercase">Prepare Query...</h2>
+                                     )}
+                                 </div>
+                             ) : (
+                                 // Phase 2: Processing / Answering / Verdict
+                                 <div className="h-full flex flex-col gap-8">
+                                     <div className="glass-card p-12 rounded-[4rem] border-white/5 bg-white/5 text-center">
+                                         <p className="text-slate-400 text-sm font-black uppercase tracking-[0.3em] mb-4">Query Received</p>
+                                         <h2 className="text-4xl font-black text-white leading-tight">"{session.currentAskAiQuestion}"</h2>
+                                     </div>
+                                     
+                                     {session.askAiState === 'ANSWERING' && (
+                                         <div className="flex-grow glass-card p-12 rounded-[4rem] border border-purple-500/30 bg-purple-500/5 relative overflow-hidden flex items-center justify-center">
+                                             <div className="absolute inset-0 bg-purple-500/5 animate-pulse" />
+                                             <div className="relative z-10 text-center">
+                                                 <div className="w-16 h-16 rounded-full border-t-2 border-l-2 border-purple-400 animate-spin mx-auto mb-6" />
+                                                 <p className="text-2xl font-light text-slate-300">Formulating Response...</p>
+                                             </div>
+                                         </div>
+                                     )}
+
+                                     {session.askAiVerdict && (
+                                         <div className={`p-12 rounded-[4rem] flex flex-col items-center justify-center text-center animate-in zoom-in ${
+                                             session.askAiVerdict === 'AI_WRONG' ? 'bg-emerald-600 shadow-[0_0_100px_rgba(16,185,129,0.5)]' : 'bg-rose-600 shadow-[0_0_100px_rgba(225,29,72,0.5)]'
+                                         }`}>
+                                              {session.askAiVerdict === 'AI_WRONG' ? (
+                                                  <>
+                                                    <ThumbsDown className="w-24 h-24 text-white mb-6" />
+                                                    <h2 className="text-7xl font-black text-white uppercase tracking-tighter">AI Defeated</h2>
+                                                    <p className="text-2xl font-black uppercase tracking-[0.5em] mt-4 opacity-80">+200 Credits to {activeTeam?.name}</p>
+                                                  </>
+                                              ) : (
+                                                  <>
+                                                    <ThumbsUp className="w-24 h-24 text-white mb-6" />
+                                                    <h2 className="text-7xl font-black text-white uppercase tracking-tighter">AI Victorious</h2>
+                                                    <p className="text-2xl font-black uppercase tracking-[0.5em] mt-4 opacity-80">Knowledge Validated</p>
+                                                  </>
+                                              )}
+                                         </div>
+                                     )}
+                                 </div>
+                             )}
+                        </div>
+                    ) : (
+                        // --- STANDARD DISPLAY LOGIC ---
+                        <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
+                            <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-indigo-600 border-white/5 bg-white/5 shadow-2xl relative overflow-hidden flex-grow flex items-center">
+                                <div className="absolute -top-10 -right-10 opacity-5">
+                                    <Brain className="w-80 h-80 text-white rotate-12" />
+                                </div>
+                                <h2 className="relative z-10 text-5xl md:text-6xl lg:text-7xl font-sans font-bold text-white leading-[1.4] tracking-wide drop-shadow-2xl">
+                                    {currentQuestion.text}
+                                </h2>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-8 h-[40%]">
+                                {currentQuestion.options.map((opt, i) => {
+                                    const isRevealed = session.status === QuizStatus.REVEALED;
+                                    const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
+                                    const isDimmed = isRevealed && !isCorrect;
+                                    
+                                    return (
+                                    <div key={i} className={`
+                                        relative overflow-hidden rounded-[3rem] p-10 flex items-center gap-10 border transition-all duration-700
+                                        ${isCorrect 
+                                        ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_80px_rgba(16,185,129,0.5)] scale-[1.03] z-20' 
+                                        : isDimmed 
+                                            ? 'bg-slate-900/60 border-white/5 opacity-20 grayscale' 
+                                            : 'glass-card border-white/10 bg-white/5 hover:bg-white/10'
+                                        }
+                                    `}>
+                                        <div className={`
+                                            w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shrink-0
+                                            ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}
+                                        `}>
+                                            {String.fromCharCode(65+i)}
+                                        </div>
+                                        <span className={`text-3xl md:text-4xl font-sans font-semibold leading-relaxed tracking-wide ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                            {opt}
+                                        </span>
+                                        {isCorrect && (
+                                            <div className="absolute right-10 top-1/2 -translate-y-1/2">
+                                                <ShieldCheck className="w-12 h-12 text-white animate-bounce" />
+                                            </div>
+                                        )}
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )
                 )}
 
                 {/* --- SYSTEM OVERLAYS --- */}

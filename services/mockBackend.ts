@@ -1,5 +1,5 @@
 
-import { QuizSession, QuizStatus, Team, Submission, Question, RoundType } from '../types';
+import { QuizSession, QuizStatus, Team, Submission, Question, RoundType, AskAiState } from '../types';
 
 const STORAGE_KEY = 'DUK_QUIZ_SESSION_V2';
 
@@ -20,7 +20,8 @@ const DEFAULT_SESSION: QuizSession = {
   nextRoundType: 'STANDARD',
   activeTeamId: null,
   turnStartTime: 0,
-  isReading: false
+  isReading: false,
+  askAiState: 'IDLE'
 };
 
 const loadSession = (): QuizSession => {
@@ -93,6 +94,13 @@ export const QuizService = {
     return session;
   },
 
+  setNextRoundType: async (type: RoundType): Promise<QuizSession> => {
+    let session = loadSession();
+    session.nextRoundType = type;
+    saveSession(session);
+    return session;
+  },
+
   injectDynamicQuestion: async (question: Question): Promise<QuizSession> => {
     let session = loadSession();
     session.currentQuestion = question;
@@ -101,13 +109,21 @@ export const QuizService = {
     session.passedTeamIds = [];
     session.requestedHint = false;
     session.hintVisible = false;
-    session.explanationVisible = false; // Reset explanation
+    session.explanationVisible = false;
     session.isReading = false;
-    
-    // Toggle next round type for next time
-    session.nextRoundType = question.roundType === 'STANDARD' ? 'BUZZER' : 'STANDARD';
+    session.askAiState = 'IDLE';
+    session.currentAskAiQuestion = undefined;
+    session.currentAskAiResponse = undefined;
+    session.askAiVerdict = undefined;
 
-    if (question.roundType === 'STANDARD') {
+    // Logic for next round cycle (default rotation)
+    // This runs only if we haven't manually set a next round type elsewhere, 
+    // but effectively this sets the NEXT round after the CURRENT one is injected.
+    if (question.roundType === 'STANDARD') session.nextRoundType = 'BUZZER';
+    else if (question.roundType === 'BUZZER') session.nextRoundType = 'ASK_AI';
+    else session.nextRoundType = 'STANDARD';
+
+    if (question.roundType === 'STANDARD' || question.roundType === 'ASK_AI') {
       session.activeTeamId = session.teams[0].id;
     } else {
       session.activeTeamId = null;
@@ -159,7 +175,6 @@ export const QuizService = {
     return session;
   },
 
-  // New method to reveal explanation explicitly
   revealExplanation: async (): Promise<QuizSession> => {
     let session = loadSession();
     session.explanationVisible = true;
@@ -171,7 +186,7 @@ export const QuizService = {
     let session = loadSession();
     session.status = QuizStatus.REVEALED;
     session.isReading = false;
-    session.explanationVisible = false; // Ensure it stays hidden initially
+    session.explanationVisible = false;
     
     const currentQuestion = session.currentQuestion;
     if (!currentQuestion) return session;
@@ -189,7 +204,7 @@ export const QuizService = {
           team.score -= 50;
         }
       }
-    } else {
+    } else if (currentQuestion.roundType === 'STANDARD') {
       session.submissions.forEach(sub => {
         const team = session.teams.find(t => t.id === sub.teamId);
         if (!team || sub.type === 'PASS') return;
@@ -213,6 +228,46 @@ export const QuizService = {
       session.isReading = false;
       session.turnStartTime = Date.now();
     }
+    saveSession(session);
+    return session;
+  },
+
+  // --- ASK AI SPECIFIC METHODS ---
+
+  setAskAiState: async (state: AskAiState, payload?: any): Promise<QuizSession> => {
+    let session = loadSession();
+    session.askAiState = state;
+    
+    if (state === 'LISTENING') {
+        session.currentAskAiResponse = undefined;
+        session.askAiVerdict = undefined;
+    }
+    
+    if (state === 'PROCESSING' && payload?.question) {
+        session.currentAskAiQuestion = payload.question;
+    }
+
+    if (state === 'ANSWERING' && payload?.response) {
+        session.currentAskAiResponse = payload.response;
+    }
+
+    saveSession(session);
+    return session;
+  },
+
+  judgeAskAi: async (verdict: 'AI_CORRECT' | 'AI_WRONG'): Promise<QuizSession> => {
+    let session = loadSession();
+    session.askAiState = 'COMPLETED';
+    session.askAiVerdict = verdict;
+
+    // SCORING RULE: If AI is WRONG, Team gets +200 points.
+    if (verdict === 'AI_WRONG' && session.activeTeamId) {
+        const team = session.teams.find(t => t.id === session.activeTeamId);
+        if (team) {
+            team.score += 200;
+        }
+    }
+
     saveSession(session);
     return session;
   }

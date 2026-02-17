@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
 import { QuizStatus, SubmissionType } from '../types';
@@ -7,7 +7,7 @@ import { Card, Button, Badge } from '../components/SharedUI';
 import { 
   CheckCircle2, AlertCircle, Clock, Zap, LogOut, 
   Sparkles, MessageSquare, BrainCircuit, Waves, 
-  Lock as LockIcon, Activity, HandMetal
+  Lock as LockIcon, Activity, HandMetal, Mic, Send
 } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
@@ -16,6 +16,11 @@ const TeamView: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(localStorage.getItem('duk_team_id'));
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Ask AI State
+  const [askAiText, setAskAiText] = useState("");
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
 
   const currentQuestion = session?.currentQuestion;
   const mySubmission = session?.submissions.find(s => s.teamId === selectedTeam);
@@ -25,8 +30,30 @@ const TeamView: React.FC = () => {
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW) {
       setSelectedAnswer(null);
+      setAskAiText("");
     }
   }, [session?.currentQuestion?.id, session?.status]);
+
+  // STT Init
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new (window as any).webkitSpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setAskAiText(transcript);
+        setIsListening(false);
+      };
+
+      recognition.onerror = () => setIsListening(false);
+      recognition.onend = () => setIsListening(false);
+      
+      recognitionRef.current = recognition;
+    }
+  }, []);
 
   if (loading || !session) return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6">
@@ -77,6 +104,28 @@ const TeamView: React.FC = () => {
       setIsSubmitting(false);
     }
   };
+  
+  const toggleListening = () => {
+    if (!recognitionRef.current) return;
+    if (isListening) {
+        recognitionRef.current.stop();
+        setIsListening(false);
+    } else {
+        recognitionRef.current.start();
+        setIsListening(true);
+    }
+  };
+
+  const submitAskAi = async () => {
+      if (!askAiText.trim()) return;
+      setIsSubmitting(true);
+      try {
+          await API.submitAskAiQuestion(askAiText);
+          await refresh();
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
 
   const renderContent = () => {
     if (!currentQuestion || session.status === QuizStatus.PREVIEW) {
@@ -89,6 +138,86 @@ const TeamView: React.FC = () => {
       );
     }
 
+    // --- ASK AI ROUND LOGIC ---
+    if (currentQuestion.roundType === 'ASK_AI') {
+        if (!isMyTurn) {
+             return (
+                <div className="flex flex-col items-center justify-center h-[50vh] text-center animate-in zoom-in">
+                    <div className="w-32 h-32 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center mb-8">
+                        <LockIcon className="w-12 h-12 text-slate-500" />
+                    </div>
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tight">Active Node: {session.teams.find(t=>t.id===session.activeTeamId)?.name}</h2>
+                    <p className="text-slate-400 mt-4 uppercase tracking-widest text-xs">Waiting for sequence completion...</p>
+                </div>
+             );
+        }
+
+        if (session.askAiState === 'IDLE') {
+             return (
+                <div className="flex flex-col items-center justify-center h-[50vh] text-center animate-in zoom-in">
+                    <BrainCircuit className="w-24 h-24 text-purple-500 mb-8 animate-pulse" />
+                    <h2 className="text-3xl font-black text-white uppercase tracking-tight">Challenge The Core</h2>
+                    <p className="text-slate-400 mt-4 uppercase tracking-widest text-xs max-w-md mx-auto">Prepare your query regarding AI, Blockchain, or Future Tech. Wait for Admin signal.</p>
+                </div>
+             );
+        }
+
+        if (session.askAiState === 'LISTENING') {
+            return (
+                <div className="flex flex-col items-center gap-8 max-w-2xl mx-auto animate-in slide-in-from-bottom">
+                     <div className="text-center space-y-2">
+                        <Badge color="blue">Input Active</Badge>
+                        <h2 className="text-4xl font-black text-white uppercase">Ask Your Question</h2>
+                     </div>
+                     
+                     <div className="w-full relative">
+                        <textarea
+                            value={askAiText}
+                            onChange={(e) => setAskAiText(e.target.value)}
+                            placeholder="Type your question or use microphone..."
+                            className="w-full bg-slate-900/50 border border-white/10 rounded-[2rem] p-8 h-48 text-xl text-white resize-none focus:outline-none focus:border-indigo-500 transition-colors"
+                        />
+                        <button 
+                            onClick={toggleListening}
+                            className={`absolute bottom-6 right-6 p-4 rounded-full transition-all ${isListening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}
+                        >
+                            <Mic className="w-6 h-6 text-white" />
+                        </button>
+                     </div>
+
+                     <Button 
+                        variant="primary" 
+                        className="w-full h-20 text-xl" 
+                        onClick={submitAskAi}
+                        disabled={!askAiText.trim() || isSubmitting}
+                     >
+                        <Send className="w-6 h-6 mr-3" />
+                        SUBMIT TO CORE
+                     </Button>
+                </div>
+            );
+        }
+
+        // Processing / Judging
+        return (
+             <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-8 animate-in zoom-in">
+                 <div className="relative w-32 h-32">
+                     <div className="absolute inset-0 border-4 border-indigo-500/30 rounded-full" />
+                     <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin" />
+                     <BrainCircuit className="absolute inset-0 m-auto w-12 h-12 text-indigo-400" />
+                 </div>
+                 <div>
+                    <h3 className="text-2xl font-black text-white uppercase">Processing Query</h3>
+                    <p className="text-slate-500 mt-2 uppercase tracking-widest text-xs">AI is formulating response...</p>
+                 </div>
+                 <div className="bg-white/5 p-6 rounded-2xl max-w-xl">
+                    <p className="text-slate-300 italic">"{session.currentAskAiQuestion}"</p>
+                 </div>
+             </div>
+        );
+    }
+
+    // --- STANDARD / BUZZER ROUND LOGIC (Existing) ---
     if (session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED) {
       const isBuzzer = currentQuestion.roundType === 'BUZZER';
       const canPlay = isBuzzer || isMyTurn;
@@ -147,7 +276,7 @@ const TeamView: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
                 {isLocked && !mySubmission && (
-                    <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-30 flex items-center justify-center rounded-[3rem] border border-white/5">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-30 flex items-center justify-center rounded-[3rem] border border-white/5">
                         <div className="bg-slate-900 border border-rose-500/50 px-12 py-6 rounded-full flex items-center gap-6">
                           <LockIcon className="w-6 h-6 text-rose-500" />
                           <span className="text-sm font-black uppercase text-rose-500 tracking-[0.4em]">Node Locked</span>

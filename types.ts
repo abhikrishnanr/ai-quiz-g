@@ -6,9 +6,10 @@ export enum QuizStatus {
   REVEALED = 'REVEALED'
 }
 
-export type RoundType = 'BUZZER' | 'STANDARD';
+export type RoundType = 'BUZZER' | 'STANDARD' | 'ASK_AI';
 export type SubmissionType = 'ANSWER' | 'PASS';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+export type AskAiState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'ANSWERING' | 'JUDGING' | 'COMPLETED';
 
 export interface Question {
   id: string;
@@ -49,11 +50,17 @@ export interface QuizSession {
   passedTeamIds: string[];
   requestedHint: boolean;
   hintVisible: boolean;
-  explanationVisible: boolean; // New flag for separate explanation reveal
+  explanationVisible: boolean;
   nextRoundType: RoundType;
   teams: Team[];
   submissions: Submission[];
   isReading?: boolean;
+  
+  // Ask The AI Round Specifics
+  askAiState: AskAiState;
+  currentAskAiQuestion?: string;
+  currentAskAiResponse?: string;
+  askAiVerdict?: 'AI_CORRECT' | 'AI_WRONG';
 }
 
 export interface APIResponse<T> {

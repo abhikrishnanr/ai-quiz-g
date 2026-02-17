@@ -2,12 +2,13 @@
 import React, { useState, useRef } from 'react';
 import { useQuizSync } from '../hooks/useQuizSync';
 import { API } from '../services/api';
-import { QuizStatus } from '../types';
+import { QuizStatus, RoundType } from '../types';
 import { Card, Button, Badge } from '../components/SharedUI';
 import { 
   Settings, Zap, CheckCircle, BrainCircuit, 
   MessageSquare, Play, Lock as LockIcon, Eye, Star,
-  Sparkles, Activity, AlertTriangle, RefreshCw, Cpu
+  Sparkles, Activity, AlertTriangle, RefreshCw, Cpu,
+  Mic, ThumbsUp, ThumbsDown, Waves, ArrowRight
 } from 'lucide-react';
 
 const AdminView: React.FC = () => {
@@ -34,6 +35,8 @@ const AdminView: React.FC = () => {
   };
 
   const handleGenerate = () => performAction(() => API.generateQuestion());
+  
+  const handleSetRound = (type: RoundType) => performAction(() => API.setRoundMode(type));
 
   const handleReset = () => {
     if (confirmReset) {
@@ -105,12 +108,43 @@ const AdminView: React.FC = () => {
           </div>
         </header>
 
+        {/* --- ROUND SELECTION BAR --- */}
+        <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-[2rem] border border-white/5 flex gap-4 overflow-x-auto">
+            <div className="px-6 flex items-center justify-center bg-white/5 rounded-2xl border border-white/5">
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] whitespace-nowrap">Protocol Select</span>
+            </div>
+            
+            <button 
+                onClick={() => handleSetRound('STANDARD')} 
+                className={`flex-1 min-w-[160px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${session.currentQuestion?.roundType === 'STANDARD' ? 'bg-indigo-600 border-indigo-500 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+            >
+                <Waves className="w-4 h-4 text-white" />
+                <span className="text-xs font-black uppercase tracking-wider text-white">Standard</span>
+            </button>
+
+            <button 
+                onClick={() => handleSetRound('BUZZER')} 
+                className={`flex-1 min-w-[160px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${session.currentQuestion?.roundType === 'BUZZER' ? 'bg-amber-600 border-amber-500 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+            >
+                <Zap className="w-4 h-4 text-white" />
+                <span className="text-xs font-black uppercase tracking-wider text-white">Buzzer</span>
+            </button>
+
+            <button 
+                onClick={() => handleSetRound('ASK_AI')} 
+                className={`flex-1 min-w-[160px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${session.currentQuestion?.roundType === 'ASK_AI' ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
+            >
+                <BrainCircuit className="w-4 h-4 text-white" />
+                <span className="text-xs font-black uppercase tracking-wider text-white">Ask The AI</span>
+            </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           <div className="lg:col-span-4 space-y-6">
             <Card className="flex flex-col gap-6">
                <div className="space-y-2">
                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Neural Generation</h3>
-                 <p className="text-sm text-slate-400">Request a new knowledge fragment from the cloud infrastructure.</p>
+                 <p className="text-sm text-slate-400">Request a new knowledge fragment from the cloud infrastructure based on current protocol.</p>
                </div>
                
                <button 
@@ -119,7 +153,7 @@ const AdminView: React.FC = () => {
                 className="w-full py-10 rounded-[2.5rem] bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 flex flex-col items-center gap-4"
                >
                  <RefreshCw className={`w-8 h-8 ${updating ? 'animate-spin' : ''}`} />
-                 LOAD NEXT QUESTION
+                 LOAD QUESTION
                </button>
 
                <div className="grid grid-cols-2 gap-4 mt-4">
@@ -152,97 +186,166 @@ const AdminView: React.FC = () => {
           </div>
 
           <div className="lg:col-span-8 space-y-8">
-            <Card className="border-t-[6px] border-t-indigo-600 overflow-hidden" noPadding>
-              <div className="bg-slate-900/60 p-8 grid grid-cols-4 gap-4 border-b border-white/10">
-                <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
-                <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
-                <ControlButton status={QuizStatus.LOCKED} label="Lock Answer" icon={LockIcon} variant="danger" desc="Stop Submissions" />
-                <button
-                  onClick={() => performAction(API.revealAnswerAndProcessScores)} 
-                  className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 h-32 transition-all duration-500 group ${
-                    session.status === QuizStatus.REVEALED ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-white/5 border-white/5'
-                  }`}
-                >
-                   <CheckCircle className="w-7 h-7 mb-3" />
-                   <span className="font-black uppercase text-[10px] tracking-widest">Reveal Answer</span>
-                   <span className="text-[8px] font-bold uppercase mt-1 opacity-40">Show Result</span>
-                </button>
-              </div>
-
-              {/* Explicit Explanation Reveal Button */}
-              {session.status === QuizStatus.REVEALED && (
-                 <div className="px-8 pt-4 pb-0 flex justify-end">
-                    <button
-                      onClick={() => performAction(API.revealExplanation)}
-                      disabled={session.explanationVisible}
-                      className={`flex items-center gap-3 px-8 py-4 rounded-2xl border transition-all ${
-                         session.explanationVisible 
-                         ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 cursor-default' 
-                         : 'bg-indigo-600 border-indigo-500 text-white shadow-lg hover:bg-indigo-500 hover:scale-105'
-                      }`}
-                    >
-                       <Sparkles className="w-5 h-5" />
-                       <span className="font-black uppercase tracking-widest text-xs">
-                         {session.explanationVisible ? 'Explanation Live' : 'Broadcast Explanation'}
-                       </span>
-                    </button>
-                 </div>
-              )}
-
-              <div className="p-12 min-h-[500px] relative">
-                {session.currentQuestion ? (
-                  <div className="space-y-12 animate-in slide-in-from-bottom-8">
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-3">
-                         <Badge color={session.currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>
-                           {session.currentQuestion.roundType} ROUND
-                         </Badge>
-                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-2">ID: {session.currentQuestion.id}</p>
-                      </div>
-                      {session.hintVisible && (
-                        <div className="bg-indigo-600/10 border border-indigo-500/50 p-6 rounded-[2rem] max-w-[300px]">
-                           <div className="flex items-center gap-2 mb-2 text-indigo-400">
-                             <Sparkles className="w-4 h-4" />
-                             <span className="text-[9px] font-black uppercase tracking-widest">Active Hint</span>
-                           </div>
-                           <p className="text-xs font-bold text-slate-300 italic">"{session.currentQuestion.hint}"</p>
+            {session.currentQuestion?.roundType === 'ASK_AI' ? (
+                // --- ASK AI ADMIN PANEL ---
+                <Card className="border-t-[6px] border-t-purple-500" noPadding>
+                     <div className="bg-slate-900/60 p-8 grid grid-cols-3 gap-4 border-b border-white/10">
+                        <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
+                        <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
+                        <div className="flex flex-col items-center justify-center p-6 bg-white/5 rounded-[2rem] border border-white/5">
+                            <span className="text-[10px] font-black uppercase text-slate-500">Current AI State</span>
+                            <span className="text-xl font-black text-purple-400 mt-2">{session.askAiState}</span>
                         </div>
-                      )}
-                    </div>
+                     </div>
+                     
+                     <div className="p-12 space-y-8">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-3xl font-black text-white uppercase">Ask The AI Protocol</h2>
+                            {session.activeTeamId && (
+                                <Badge color="amber">Active: {session.teams.find(t => t.id === session.activeTeamId)?.name}</Badge>
+                            )}
+                        </div>
 
-                    <h2 className="text-5xl font-black text-white leading-tight tracking-tighter">{session.currentQuestion.text}</h2>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      {session.currentQuestion.options.map((opt, i) => (
-                         <div key={i} className={`p-6 rounded-[2.5rem] border-2 flex items-center gap-5 ${
-                           i === session.currentQuestion?.correctAnswer ? 'bg-emerald-500/10 border-emerald-500' : 'bg-white/5 border-white/5'
-                         }`}>
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
-                              i === session.currentQuestion?.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'
-                            }`}>
-                              {String.fromCharCode(65+i)}
+                        {/* Step 1: Enable Input */}
+                        <div className="grid grid-cols-2 gap-6">
+                            <button
+                                disabled={session.askAiState !== 'IDLE' && session.askAiState !== 'COMPLETED'}
+                                onClick={() => performAction(() => API.setAskAiState('LISTENING'))}
+                                className="p-8 bg-indigo-600/20 border border-indigo-500/50 rounded-[2rem] hover:bg-indigo-600/40 disabled:opacity-30 transition-all text-left"
+                            >
+                                <Mic className="w-8 h-8 text-indigo-400 mb-4" />
+                                <h3 className="text-lg font-black text-white uppercase">Enable Team Input</h3>
+                                <p className="text-xs text-slate-400 mt-2">Allow active team to speak/type.</p>
+                            </button>
+                            
+                            <div className="p-8 bg-white/5 rounded-[2rem] border border-white/10">
+                                <h3 className="text-xs font-black text-slate-500 uppercase mb-2">Submitted Question</h3>
+                                <p className="text-xl font-medium text-white italic">
+                                    {session.currentAskAiQuestion || "Waiting for input..."}
+                                </p>
                             </div>
-                            <span className="font-bold text-lg">{opt}</span>
-                         </div>
-                      ))}
-                    </div>
+                        </div>
 
-                    {session.explanationVisible && (
-                      <div className="p-8 bg-indigo-600/10 border-l-4 border-indigo-500 rounded-r-3xl animate-in zoom-in">
-                        <h4 className="text-[10px] font-black uppercase text-indigo-400 mb-3 tracking-[0.3em]">Knowledge Synthesis</h4>
-                        <p className="text-lg font-bold text-slate-200 leading-relaxed italic">"{session.currentQuestion.explanation}"</p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="h-[400px] flex flex-col items-center justify-center text-center opacity-40">
-                     <BrainCircuit className="w-24 h-24 text-indigo-500 mb-8" />
-                     <h3 className="text-2xl font-black uppercase tracking-[0.4em] text-white">Neural Uplink Ready</h3>
-                     <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500">Load a neural fragment to begin sequence</p>
-                  </div>
+                        {/* Step 2: Verdict (Only if Answering or Judging) */}
+                        {session.askAiState === 'ANSWERING' || session.askAiState === 'JUDGING' || session.askAiState === 'COMPLETED' ? (
+                             <div className="space-y-6 animate-in slide-in-from-bottom">
+                                <div className="p-6 bg-purple-500/10 border border-purple-500/30 rounded-[2rem]">
+                                    <h3 className="text-xs font-black text-purple-400 uppercase mb-2">AI Response</h3>
+                                    <p className="text-lg text-slate-200">{session.currentAskAiResponse}</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-6">
+                                    <button 
+                                        onClick={() => performAction(() => API.judgeAskAi('AI_CORRECT'))}
+                                        className="p-6 bg-emerald-600 hover:bg-emerald-500 rounded-[2rem] flex items-center justify-center gap-4 text-white font-black uppercase tracking-widest"
+                                    >
+                                        <ThumbsUp className="w-6 h-6" /> AI Correct (Next Team)
+                                    </button>
+                                    <button 
+                                        onClick={() => performAction(() => API.judgeAskAi('AI_WRONG'))}
+                                        className="p-6 bg-rose-600 hover:bg-rose-500 rounded-[2rem] flex items-center justify-center gap-4 text-white font-black uppercase tracking-widest"
+                                    >
+                                        <ThumbsDown className="w-6 h-6" /> AI Wrong (+200 Pts)
+                                    </button>
+                                </div>
+                             </div>
+                        ) : null}
+                     </div>
+                </Card>
+            ) : (
+                // --- STANDARD/BUZZER ADMIN PANEL ---
+                <Card className="border-t-[6px] border-t-indigo-600 overflow-hidden" noPadding>
+                <div className="bg-slate-900/60 p-8 grid grid-cols-4 gap-4 border-b border-white/10">
+                    <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
+                    <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
+                    <ControlButton status={QuizStatus.LOCKED} label="Lock Answer" icon={LockIcon} variant="danger" desc="Stop Submissions" />
+                    <button
+                    onClick={() => performAction(API.revealAnswerAndProcessScores)} 
+                    className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 h-32 transition-all duration-500 group ${
+                        session.status === QuizStatus.REVEALED ? 'bg-indigo-600 text-white border-indigo-500' : 'bg-white/5 border-white/5'
+                    }`}
+                    >
+                    <CheckCircle className="w-7 h-7 mb-3" />
+                    <span className="font-black uppercase text-[10px] tracking-widest">Reveal Answer</span>
+                    <span className="text-[8px] font-bold uppercase mt-1 opacity-40">Show Result</span>
+                    </button>
+                </div>
+
+                {/* Explicit Explanation Reveal Button */}
+                {session.status === QuizStatus.REVEALED && (
+                    <div className="px-8 pt-4 pb-0 flex justify-end">
+                        <button
+                        onClick={() => performAction(API.revealExplanation)}
+                        disabled={session.explanationVisible}
+                        className={`flex items-center gap-3 px-8 py-4 rounded-2xl border transition-all ${
+                            session.explanationVisible 
+                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 cursor-default' 
+                            : 'bg-indigo-600 border-indigo-500 text-white shadow-lg hover:bg-indigo-500 hover:scale-105'
+                        }`}
+                        >
+                        <Sparkles className="w-5 h-5" />
+                        <span className="font-black uppercase tracking-widest text-xs">
+                            {session.explanationVisible ? 'Explanation Live' : 'Broadcast Explanation'}
+                        </span>
+                        </button>
+                    </div>
                 )}
-              </div>
-            </Card>
+
+                <div className="p-12 min-h-[500px] relative">
+                    {session.currentQuestion ? (
+                    <div className="space-y-12 animate-in slide-in-from-bottom-8">
+                        <div className="flex justify-between items-start">
+                        <div className="space-y-3">
+                            <Badge color={session.currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>
+                            {session.currentQuestion.roundType} ROUND
+                            </Badge>
+                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-2">ID: {session.currentQuestion.id}</p>
+                        </div>
+                        {session.hintVisible && (
+                            <div className="bg-indigo-600/10 border border-indigo-500/50 p-6 rounded-[2rem] max-w-[300px]">
+                            <div className="flex items-center gap-2 mb-2 text-indigo-400">
+                                <Sparkles className="w-4 h-4" />
+                                <span className="text-[9px] font-black uppercase tracking-widest">Active Hint</span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-300 italic">"{session.currentQuestion.hint}"</p>
+                            </div>
+                        )}
+                        </div>
+
+                        <h2 className="text-5xl font-black text-white leading-tight tracking-tighter">{session.currentQuestion.text}</h2>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                        {session.currentQuestion.options.map((opt, i) => (
+                            <div key={i} className={`p-6 rounded-[2.5rem] border-2 flex items-center gap-5 ${
+                            i === session.currentQuestion?.correctAnswer ? 'bg-emerald-500/10 border-emerald-500' : 'bg-white/5 border-white/5'
+                            }`}>
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${
+                                i === session.currentQuestion?.correctAnswer ? 'bg-emerald-500 text-white' : 'bg-slate-800 text-slate-500'
+                                }`}>
+                                {String.fromCharCode(65+i)}
+                                </div>
+                                <span className="font-bold text-lg">{opt}</span>
+                            </div>
+                        ))}
+                        </div>
+
+                        {session.explanationVisible && (
+                        <div className="p-8 bg-indigo-600/10 border-l-4 border-indigo-500 rounded-r-3xl animate-in zoom-in">
+                            <h4 className="text-[10px] font-black uppercase text-indigo-400 mb-3 tracking-[0.3em]">Knowledge Synthesis</h4>
+                            <p className="text-lg font-bold text-slate-200 leading-relaxed italic">"{session.currentQuestion.explanation}"</p>
+                        </div>
+                        )}
+                    </div>
+                    ) : (
+                    <div className="h-[400px] flex flex-col items-center justify-center text-center opacity-40">
+                        <BrainCircuit className="w-24 h-24 text-indigo-500 mb-8" />
+                        <h3 className="text-2xl font-black uppercase tracking-[0.4em] text-white">Neural Uplink Ready</h3>
+                        <p className="mt-4 text-xs font-bold uppercase tracking-widest text-slate-500">Load a neural fragment to begin sequence</p>
+                    </div>
+                    )}
+                </div>
+                </Card>
+            )}
           </div>
         </div>
       </div>
