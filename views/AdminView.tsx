@@ -8,7 +8,8 @@ import {
   Settings, Zap, CheckCircle, BrainCircuit, 
   MessageSquare, Play, Lock as LockIcon, Eye, Star,
   Sparkles, Activity, AlertTriangle, RefreshCw, Cpu,
-  Mic, ThumbsUp, ThumbsDown, Waves, ArrowRight, Search, Camera
+  Mic, ThumbsUp, ThumbsDown, Waves, ArrowRight, Search, Camera,
+  Users
 } from 'lucide-react';
 
 const AdminView: React.FC = () => {
@@ -72,6 +73,36 @@ const AdminView: React.FC = () => {
       </button>
     );
   };
+
+  const TeamSelectionPanel = () => (
+    <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5 mb-8">
+        <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4" /> Select Active Team
+        </h3>
+        <div className="flex flex-wrap gap-4">
+            {session.teams.map((team) => {
+                const isPassed = session.passedTeamIds.includes(team.id);
+                const isActive = session.activeTeamId === team.id;
+                return (
+                    <button
+                        key={team.id}
+                        onClick={() => performAction(() => API.setActiveTeam(team.id))}
+                        className={`px-6 py-4 rounded-xl font-black uppercase tracking-wider text-sm transition-all border-2 relative overflow-hidden ${
+                            isActive
+                                ? 'bg-indigo-600 border-indigo-500 text-white shadow-lg scale-105'
+                                : isPassed 
+                                    ? 'bg-slate-900 border-slate-800 text-slate-600 opacity-60' 
+                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-indigo-500/50 hover:text-white'
+                        }`}
+                    >
+                        {team.name}
+                        {isPassed && <span className="absolute top-1 right-2 text-[8px] text-rose-500 font-bold">PASS</span>}
+                    </button>
+                );
+            })}
+        </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-200 relative overflow-hidden">
@@ -215,27 +246,8 @@ const AdminView: React.FC = () => {
                             )}
                         </div>
 
-                        {/* TEAM SELECTION BUTTONS */}
-                        {session.status !== QuizStatus.LIVE && (
-                            <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5">
-                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Select Challenger Team</h3>
-                                <div className="flex flex-wrap gap-4">
-                                    {session.teams.map((team) => (
-                                        <button
-                                            key={team.id}
-                                            onClick={() => performAction(() => API.setActiveTeam(team.id))}
-                                            className={`px-6 py-4 rounded-xl font-black uppercase tracking-wider text-sm transition-all border-2 ${
-                                                session.activeTeamId === team.id
-                                                    ? 'bg-purple-600 border-purple-500 text-white shadow-lg scale-105'
-                                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-purple-500/50 hover:text-white'
-                                            }`}
-                                        >
-                                            {team.name}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        {/* TEAM SELECTION - Always visible to change team */}
+                        <TeamSelectionPanel />
 
                         <div className="grid grid-cols-2 gap-6">
                             <button
@@ -300,7 +312,12 @@ const AdminView: React.FC = () => {
 
                 <div className="p-12 min-h-[500px] relative">
                     {session.currentQuestion ? (
-                    <div className="space-y-12 animate-in slide-in-from-bottom-8">
+                    <div className="space-y-8 animate-in slide-in-from-bottom-8">
+                        {/* Manual Team Selection for Standard Round */}
+                        {session.currentQuestion.roundType === 'STANDARD' && (
+                            <TeamSelectionPanel />
+                        )}
+
                         <div className="flex justify-between items-start">
                         <Badge color={session.currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>
                             {session.currentQuestion.roundType}

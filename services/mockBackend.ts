@@ -49,34 +49,14 @@ const passTurnInternal = (session: QuizSession) => {
     session.passedTeamIds.push(session.activeTeamId);
   }
 
-  const availableTeams = session.teams.filter(t => !session.passedTeamIds.includes(t.id));
-
-  if (availableTeams.length > 0) {
-    const currentIndex = session.teams.findIndex(t => t.id === session.activeTeamId);
-    let nextIndex = (currentIndex + 1) % session.teams.length;
-    
-    while (session.passedTeamIds.includes(session.teams[nextIndex].id)) {
-      nextIndex = (nextIndex + 1) % session.teams.length;
-    }
-    
-    session.activeTeamId = session.teams[nextIndex].id;
-    session.turnStartTime = Date.now();
-  } else {
-    session.status = QuizStatus.LOCKED;
-    session.activeTeamId = null;
-  }
+  // Disable auto-rotation. Admin must select next team.
+  session.activeTeamId = null;
 };
 
 export const QuizService = {
   getSession: async (): Promise<QuizSession> => {
     let session = loadSession();
-    if (session.status === QuizStatus.LIVE && session.currentQuestion?.roundType === 'STANDARD' && session.turnStartTime > 0) {
-      const elapsed = (Date.now() - session.turnStartTime) / 1000;
-      if (elapsed >= 30) { 
-        passTurnInternal(session);
-        saveSession(session);
-      }
-    }
+    // Removed auto-pass timeout logic to give admin full control
     return session;
   },
 
@@ -117,12 +97,12 @@ export const QuizService = {
     session.askAiVerdict = undefined;
 
     // Logic for next round cycle (default rotation)
-    // This runs only if we haven't manually set a next round type elsewhere, 
-    // but effectively this sets the NEXT round after the CURRENT one is injected.
     if (question.roundType === 'STANDARD') session.nextRoundType = 'BUZZER';
     else if (question.roundType === 'BUZZER') session.nextRoundType = 'ASK_AI';
     else session.nextRoundType = 'STANDARD';
 
+    // For STANDARD/ASK_AI, we can auto-select first team or leave null for admin to pick.
+    // Let's select first team by default for convenience, but admin can change it in PREVIEW.
     if (question.roundType === 'STANDARD' || question.roundType === 'ASK_AI') {
       session.activeTeamId = session.teams[0].id;
     } else {
@@ -136,6 +116,14 @@ export const QuizService = {
   setActiveTeam: async (teamId: string): Promise<QuizSession> => {
       let session = loadSession();
       session.activeTeamId = teamId;
+      session.turnStartTime = Date.now(); // Reset timer
+      
+      // If team was passed, maybe unpass them? Assuming admin knows what they are doing.
+      // But typically we don't remove from passedIds unless reset. 
+      // However, if admin manually selects a passed team, they should be able to answer (override).
+      // Let's filter them out of passedIds if manually selected.
+      session.passedTeamIds = session.passedTeamIds.filter(id => id !== teamId);
+
       saveSession(session);
       return session;
   },
@@ -144,6 +132,14 @@ export const QuizService = {
     let session = loadSession();
     const question = session.currentQuestion;
     
+    // Check timeout for Standard round (30s)
+    if (type === 'ANSWER' && question?.roundType === 'STANDARD' && session.turnStartTime) {
+        const elapsed = (Date.now() - session.turnStartTime) / 1000;
+        if (elapsed > 30) {
+            throw new Error("Time Limit Exceeded");
+        }
+    }
+
     if (type === 'PASS') {
       if (session.activeTeamId === teamId) passTurnInternal(session);
       saveSession(session);
@@ -233,6 +229,7 @@ export const QuizService = {
     let session = loadSession();
     if (session.status === QuizStatus.LIVE) {
       session.isReading = false;
+      // Restart turn timer after reading completes for fairness.
       session.turnStartTime = Date.now();
     }
     saveSession(session);

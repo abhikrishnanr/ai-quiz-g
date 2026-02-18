@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
 import { Badge } from '../components/SharedUI';
-import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown, BrainCircuit, Search, ExternalLink, Eye } from 'lucide-react';
+import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown, BrainCircuit, Search, ExternalLink, Eye, ChevronRight } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 import { HOST_SCRIPTS, AI_COMMENTS } from '../constants';
 
@@ -55,6 +55,7 @@ const DisplayView: React.FC = () => {
   const explanationPlayedRef = useRef<boolean>(false);
   const sfxPlayedRef = useRef<boolean>(false);
   const introPlayedRef = useRef<boolean>(false);
+  const lastActiveTeamRef = useRef<string | null>(null);
   
   const lastAskAiStateRef = useRef<string | null>(null);
 
@@ -117,15 +118,21 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
-    // 1. Reading Question State
-    if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE && currentQuestion.roundType !== 'ASK_AI') {
+    // 1. Reading Question State (Or new active team selected)
+    // We also trigger reading if active team changes in STANDARD mode and we are LIVE
+    const activeTeamChanged = session.activeTeamId !== lastActiveTeamRef.current;
+    const isStandardLive = session.status === QuizStatus.LIVE && currentQuestion.roundType === 'STANDARD';
+
+    if ((session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE && currentQuestion.roundType !== 'ASK_AI') || (isStandardLive && activeTeamChanged && session.activeTeamId)) {
        SFX.playIntro();
-       const audioKey = `read_${currentQuestion.id}`;
+       // Generate unique audio key based on question + active team (to prevent caching wrong team name)
+       const audioKey = `read_${currentQuestion.id}_${session.activeTeamId || 'any'}`;
        if (audioCacheRef.current[audioKey]) {
           playAudio(audioCacheRef.current[audioKey], undefined, () => {
             if (session.isReading) API.completeReading();
           });
        } else {
+          // Pass the currently selected team name for formatting
           API.getTTSAudio(API.formatQuestionForSpeech(currentQuestion, activeTeam?.name)).then(audio => {
             if (audio) {
               audioCacheRef.current[audioKey] = audio;
@@ -157,7 +164,7 @@ const DisplayView: React.FC = () => {
         const justPassedId = session.passedTeamIds[session.passedTeamIds.length - 1];
         const passedTeam = session.teams.find(t => t.id === justPassedId);
         if (passedTeam && audioInitialized) {
-            API.getTTSAudio(`${passedTeam.name} has passed the turn.`).then(audio => {
+            API.getTTSAudio(`${passedTeam.name} has passed.`).then(audio => {
                 if (audio) playAudio(audio, `${passedTeam.name} Passed`);
             });
         }
@@ -215,7 +222,7 @@ const DisplayView: React.FC = () => {
                     API.getTTSAudio(spokenComment).then(audio => {
                          if (audio) playAudio(audio, spokenComment);
                     });
-                }, 500); // Slightly reduced delay
+                }, 500); 
             } else {
                 SFX.playWrong();
                 API.getTTSAudio(HOST_SCRIPTS.TIME_UP).then(audio => {
@@ -250,9 +257,10 @@ const DisplayView: React.FC = () => {
     lastStatusRef.current = session.status;
     lastSubmissionCountRef.current = session.submissions.length;
     lastPassedCountRef.current = session.passedTeamIds.length;
-  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible, session?.passedTeamIds.length]);
+    lastActiveTeamRef.current = session.activeTeamId;
+  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible, session?.passedTeamIds.length, session?.activeTeamId]);
 
-  // Ask AI Effect (UNCHANGED logic, but keeping for completeness)
+  // Ask AI Effect (UNCHANGED logic)
   useEffect(() => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI') return;
 
@@ -290,7 +298,7 @@ const DisplayView: React.FC = () => {
   }, [session?.askAiState, session?.currentAskAiQuestion, session?.currentAskAiResponse, session?.askAiVerdict, currentQuestion?.roundType]);
 
   useEffect(() => {
-    if (session?.status === QuizStatus.LIVE && (currentQuestion?.roundType === 'STANDARD' || currentQuestion?.roundType === 'VISUAL') && !session.isReading) {
+    if (session?.status === QuizStatus.LIVE && (currentQuestion?.roundType === 'STANDARD' || currentQuestion?.roundType === 'VISUAL') && !session.isReading && session.activeTeamId) {
       const interval = setInterval(() => {
         const startTime = session.turnStartTime || Date.now();
         const elapsed = Math.floor((Date.now() - startTime) / 1000);
@@ -301,7 +309,7 @@ const DisplayView: React.FC = () => {
       }, 200);
       return () => clearInterval(interval);
     }
-  }, [session?.status, currentQuestion, session?.isReading, session?.turnStartTime]);
+  }, [session?.status, currentQuestion, session?.isReading, session?.turnStartTime, session?.activeTeamId]);
 
   if (loading || !session) return null;
 
@@ -321,7 +329,6 @@ const DisplayView: React.FC = () => {
   }
 
   const isQuestionVisible = !!currentQuestion && session.status !== QuizStatus.PREVIEW;
-  // NOTE: We only show the "Locked" overlay if status is LOCKED and NOT REVEALED.
   const lockingTeam = session.submissions.length > 0 ? session.teams.find(t => t.id === session.submissions[session.submissions.length - 1].teamId) : null;
   const showLockedOverlay = (session.status === QuizStatus.LOCKED || lockingTeam) && currentQuestion?.roundType !== 'ASK_AI' && session.status !== QuizStatus.REVEALED;
 
@@ -344,6 +351,16 @@ const DisplayView: React.FC = () => {
                 <div className="h-4 w-[1px] bg-white/10" />
                 <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">Quiz <span className="text-indigo-500">Core</span></h1>
              </div>
+
+             {/* Show Countdown Timer if Active Team & Standard Round */}
+             {isQuestionVisible && session.status === QuizStatus.LIVE && session.activeTeamId && currentQuestion?.roundType === 'STANDARD' && (
+                 <div className="absolute left-1/2 -translate-x-1/2 top-8 glass-card px-8 py-3 rounded-full border border-indigo-500/30 bg-indigo-900/40 flex items-center gap-4 animate-in zoom-in">
+                     <Clock className="w-6 h-6 text-indigo-400 animate-pulse" />
+                     <span className={`text-4xl font-black tabular-nums ${turnTimeLeft < 10 ? 'text-rose-500' : 'text-white'}`}>
+                        00:{turnTimeLeft.toString().padStart(2, '0')}
+                     </span>
+                 </div>
+             )}
 
              {isQuestionVisible && (
                  <div className="glass-card px-8 py-4 rounded-full flex items-center gap-8 border-white/5 bg-white/5 animate-in slide-in-from-right">
@@ -380,6 +397,7 @@ const DisplayView: React.FC = () => {
                    </div>
                 ) : (
                     currentQuestion.roundType === 'ASK_AI' ? (
+                        // ... ASK AI Content (Same as previous) ...
                         <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
                              {session.askAiState === 'IDLE' || session.askAiState === 'LISTENING' ? (
                                  <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-purple-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center">
@@ -423,20 +441,6 @@ const DisplayView: React.FC = () => {
                                                          {session.currentAskAiResponse}
                                                      </h2>
                                                  </div>
-                                                 
-                                                 {session.groundingUrls && session.groundingUrls.length > 0 && (
-                                                     <div className="pt-6 border-t border-white/10 w-full shrink-0">
-                                                         <p className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-4">Sources</p>
-                                                         <div className="flex flex-wrap justify-center gap-3">
-                                                             {session.groundingUrls.slice(0, 3).map((link, idx) => (
-                                                                 <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-[10px] text-indigo-300 border border-white/5 hover:bg-white/10 transition-all cursor-default">
-                                                                     <ExternalLink className="w-3 h-3" />
-                                                                     {link.title.substring(0, 30)}...
-                                                                 </div>
-                                                             ))}
-                                                         </div>
-                                                     </div>
-                                                 )}
                                              </div>
                                          </div>
                                      )}
@@ -469,6 +473,22 @@ const DisplayView: React.FC = () => {
                         </div>
                     ) : (
                         <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
+                            {/* Standard Round Header with Active Team */}
+                            {currentQuestion.roundType === 'STANDARD' && (
+                                <div className="absolute top-0 right-10 -mt-6 z-20">
+                                    {activeTeam ? (
+                                        <div className="bg-indigo-600 shadow-[0_10px_40px_rgba(79,70,229,0.5)] border-2 border-indigo-400 px-10 py-4 rounded-b-[2rem] animate-in slide-in-from-top">
+                                            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-indigo-200 block text-center mb-1">Current Turn</span>
+                                            <h2 className="text-3xl font-black text-white uppercase">{activeTeam.name}</h2>
+                                        </div>
+                                    ) : (
+                                        <div className="bg-slate-800 shadow-xl border-2 border-slate-600 px-8 py-3 rounded-b-[2rem] animate-in slide-in-from-top">
+                                            <h2 className="text-lg font-black text-slate-400 uppercase tracking-widest">Waiting for Selection...</h2>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="glass-card p-12 rounded-[4rem] border-l-[12px] border-indigo-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center gap-8 overflow-hidden relative">
                                 {currentQuestion.roundType === 'VISUAL' && currentQuestion.visualUri && (
                                     <div className="w-full h-full absolute inset-0 z-0">
@@ -487,14 +507,11 @@ const DisplayView: React.FC = () => {
                                     // Highlight Logic
                                     const isRevealed = session.status === QuizStatus.REVEALED;
                                     const isCorrectOption = i === currentQuestion.correctAnswer;
-                                    
-                                    // Determine if this option was selected by the locking team
                                     const submission = session.submissions.length > 0 ? session.submissions[session.submissions.length - 1] : null;
                                     const isSelectedByTeam = submission?.answer === i;
                                     const isWrongSelection = isRevealed && isSelectedByTeam && !isCorrectOption;
 
-                                    // Determine Style Class
-                                    let styleClass = 'glass-card border-white/10 bg-white/5'; // Default
+                                    let styleClass = 'glass-card border-white/10 bg-white/5'; 
                                     
                                     if (isRevealed) {
                                         if (isCorrectOption) {
@@ -502,7 +519,7 @@ const DisplayView: React.FC = () => {
                                         } else if (isWrongSelection) {
                                             styleClass = 'bg-rose-600 border-rose-400 shadow-[0_0_60px_rgba(244,63,94,0.4)] opacity-100';
                                         } else {
-                                            styleClass = 'bg-slate-900/60 opacity-20 blur-sm'; // Dim others
+                                            styleClass = 'bg-slate-900/60 opacity-20 blur-sm'; 
                                         }
                                     }
 
@@ -527,6 +544,7 @@ const DisplayView: React.FC = () => {
                     )
                 )}
 
+                {/* --- Locked / Passed Overlays --- */}
                 {showLockedOverlay && !session.submissions.find(s => s.teamId === activeTeam?.id)?.isCorrect && (
                    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-in zoom-in duration-300">
                       <div className="bg-slate-950/95 backdrop-blur-3xl border border-indigo-500/50 p-20 rounded-[5rem] text-center shadow-[0_0_250px_rgba(79,70,229,0.7)] transform scale-110">

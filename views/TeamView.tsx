@@ -7,7 +7,8 @@ import { Card, Button, Badge } from '../components/SharedUI';
 import { 
   CheckCircle2, AlertCircle, Clock, Zap, LogOut, 
   Sparkles, MessageSquare, BrainCircuit, Waves, 
-  Lock as LockIcon, Activity, HandMetal, Mic, Send, Eye
+  Lock as LockIcon, Activity, HandMetal, Mic, Send, Eye,
+  ArrowRight
 } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
@@ -16,6 +17,7 @@ const TeamView: React.FC = () => {
   const [selectedTeam, setSelectedTeam] = useState<string | null>(localStorage.getItem('duk_team_id'));
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timeExpired, setTimeExpired] = useState(false);
   
   const [askAiText, setAskAiText] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -30,8 +32,25 @@ const TeamView: React.FC = () => {
     if (session?.status === QuizStatus.PREVIEW) {
       setSelectedAnswer(null);
       setAskAiText("");
+      setTimeExpired(false);
     }
   }, [session?.currentQuestion?.id, session?.status]);
+
+  // Timer Check for Team
+  useEffect(() => {
+    if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && isMyTurn && session.turnStartTime) {
+        const checkTimer = () => {
+            const elapsed = (Date.now() - session.turnStartTime!) / 1000;
+            if (elapsed > 30 && !timeExpired) {
+                setTimeExpired(true);
+            } else if (elapsed <= 30 && timeExpired) {
+                setTimeExpired(false);
+            }
+        };
+        const interval = setInterval(checkTimer, 500);
+        return () => clearInterval(interval);
+    }
+  }, [session?.status, currentQuestion, isMyTurn, session?.turnStartTime, timeExpired]);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
@@ -204,6 +223,9 @@ const TeamView: React.FC = () => {
       const isVisual = currentQuestion.roundType === 'VISUAL';
       const canPlay = isBuzzer || isMyTurn;
       const isLocked = session.status === QuizStatus.LOCKED;
+      
+      // If time expired in Standard round, lock active team
+      const timeLock = timeExpired && currentQuestion.roundType === 'STANDARD';
 
       return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in slide-in-from-bottom-8">
@@ -224,7 +246,7 @@ const TeamView: React.FC = () => {
 
               {isMyTurn && !mySubmission && currentQuestion.roundType === 'STANDARD' && (
                 <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 space-y-6">
-                  <Button variant="primary" className="w-full h-20 rounded-3xl text-lg" disabled={session.requestedHint || session.hintVisible || isSubmitting} onClick={handleRequestHint}>
+                  <Button variant="primary" className="w-full h-20 rounded-3xl text-lg" disabled={session.requestedHint || session.hintVisible || isSubmitting || timeLock} onClick={handleRequestHint}>
                     {session.hintVisible ? 'Hint Given' : session.requestedHint ? 'Asked Admin' : 'Need Hint'}
                   </Button>
                 </div>
@@ -246,33 +268,50 @@ const TeamView: React.FC = () => {
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-                {isLocked && !mySubmission && (
+                {(isLocked || timeLock) && !mySubmission && (
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-30 flex items-center justify-center rounded-[3rem] border border-white/5">
                         <div className="bg-slate-900 border border-rose-500/50 px-12 py-6 rounded-full flex items-center gap-6">
                           <LockIcon className="w-6 h-6 text-rose-500" />
-                          <span className="text-sm font-black uppercase text-rose-500 tracking-[0.4em]">Locked</span>
+                          <span className="text-sm font-black uppercase text-rose-500 tracking-[0.4em]">{timeLock ? "TIME EXPIRED" : "LOCKED"}</span>
                         </div>
                     </div>
                 )}
 
                 {currentQuestion.options.map((opt, i) => (
-                  <button key={i} disabled={!!mySubmission || !canPlay || isLocked} onClick={() => setSelectedAnswer(i)} className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${selectedAnswer === i ? 'bg-white border-white text-slate-950 shadow-xl' : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'}`}>
+                  <button key={i} disabled={!!mySubmission || !canPlay || isLocked || timeLock} onClick={() => setSelectedAnswer(i)} className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${selectedAnswer === i ? 'bg-white border-white text-slate-950 shadow-xl' : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'}`}>
                     <span className={`w-14 h-14 rounded-2xl flex items-center justify-center mr-8 font-black text-2xl ${selectedAnswer === i ? 'bg-slate-900 text-white' : 'bg-white/10 text-slate-500'}`}>{String.fromCharCode(65+i)}</span>
                     <span className="text-2xl font-bold tracking-tight">{opt}</span>
                   </button>
                 ))}
               </div>
 
-              {!mySubmission && canPlay && !isLocked && (
-                <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className={`w-full py-12 text-white rounded-[4rem] text-4xl font-black uppercase tracking-tighter shadow-2xl transition-all duration-700 active:scale-95 ${selectedAnswer === null ? 'bg-slate-900/50 opacity-40' : isBuzzer ? 'bg-amber-600' : isVisual ? 'bg-cyan-600' : 'bg-indigo-600'}`}>
-                   {isBuzzer ? 'BUZZ IN' : 'SUBMIT ANSWER'}
-                </button>
+              {!mySubmission && canPlay && !isLocked && !timeLock && (
+                  <div className="flex gap-4">
+                        <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className={`flex-1 py-12 text-white rounded-[4rem] text-4xl font-black uppercase tracking-tighter shadow-2xl transition-all duration-700 active:scale-95 ${selectedAnswer === null ? 'bg-slate-900/50 opacity-40' : isBuzzer ? 'bg-amber-600' : isVisual ? 'bg-cyan-600' : 'bg-indigo-600'}`}>
+                        {isBuzzer ? 'BUZZ IN' : 'SUBMIT ANSWER'}
+                        </button>
+                        
+                        {!isBuzzer && (
+                            <button disabled={isSubmitting} onClick={() => handleSubmit('PASS')} className="w-40 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white rounded-[4rem] font-black uppercase tracking-wider flex items-center justify-center gap-2">
+                                <ArrowRight className="w-6 h-6" /> PASS
+                            </button>
+                        )}
+                  </div>
               )}
 
               {mySubmission && (
                  <div className="bg-white/5 p-16 rounded-[4rem] border border-white/10 text-center space-y-6">
-                    <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto animate-pulse" />
-                    <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">SENT</h3>
+                    {mySubmission.type === 'PASS' ? (
+                        <>
+                             <ArrowRight className="w-16 h-16 text-slate-500 mx-auto" />
+                             <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">PASSED TURN</h3>
+                        </>
+                    ) : (
+                        <>
+                            <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto animate-pulse" />
+                            <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">SENT</h3>
+                        </>
+                    )}
                  </div>
               )}
            </div>
@@ -282,14 +321,28 @@ const TeamView: React.FC = () => {
 
     if (session.status === QuizStatus.REVEALED) {
        const isCorrect = mySubmission?.isCorrect;
+       const passed = mySubmission?.type === 'PASS';
+       
        return (
          <div className="flex flex-col items-center justify-center h-[70vh] space-y-16 animate-in zoom-in max-w-5xl mx-auto">
-            <div className={`w-40 h-40 rounded-full flex items-center justify-center border-4 ${isCorrect ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.4)]' : 'bg-rose-700 border-rose-500 shadow-2xl'}`}>
-               {isCorrect ? <CheckCircle2 className="w-24 h-24 text-white" /> : <AlertCircle className="w-24 h-24 text-white" />}
-            </div>
-            <div className="text-center">
-              <h2 className={`text-8xl font-black uppercase italic tracking-tighter ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{isCorrect ? 'CORRECT' : 'WRONG'}</h2>
-            </div>
+            {!passed ? (
+                <>
+                    <div className={`w-40 h-40 rounded-full flex items-center justify-center border-4 ${isCorrect ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.4)]' : 'bg-rose-700 border-rose-500 shadow-2xl'}`}>
+                    {isCorrect ? <CheckCircle2 className="w-24 h-24 text-white" /> : <AlertCircle className="w-24 h-24 text-white" />}
+                    </div>
+                    <div className="text-center">
+                    <h2 className={`text-8xl font-black uppercase italic tracking-tighter ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{isCorrect ? 'CORRECT' : 'WRONG'}</h2>
+                    </div>
+                </>
+            ) : (
+                <div className="text-center">
+                     <div className="w-40 h-40 rounded-full flex items-center justify-center border-4 bg-slate-700 border-slate-500 shadow-2xl mx-auto mb-10">
+                        <ArrowRight className="w-24 h-24 text-slate-300" />
+                     </div>
+                     <h2 className="text-8xl font-black uppercase italic tracking-tighter text-slate-400">PASSED</h2>
+                </div>
+            )}
+            
             <div className="bg-white/5 backdrop-blur-3xl p-12 rounded-[4rem] w-full flex justify-between items-center border border-white/10 shadow-2xl">
                <div>
                   <span className="text-slate-600 font-black uppercase tracking-[0.4em] text-[9px] block mb-2">Score</span>

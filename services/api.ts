@@ -252,10 +252,16 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    if (question.roundType === 'ASK_AI') return `Ask AI Round. Challenge me with a question.`;
+    if (question.roundType === 'ASK_AI') return `Ask AI Round. ${activeTeamName}, challenge me with a question.`;
     if (question.roundType === 'VISUAL') return `Visual Round. Look at the screen and identify the image.`;
+    
+    let prefix = "";
+    if (question.roundType === 'STANDARD' && activeTeamName) {
+        prefix = `Question for ${activeTeamName}. `;
+    }
+
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
-    return `${question.text} Options are: ${opts}`;
+    return `${prefix}${question.text} Options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => explanation,
