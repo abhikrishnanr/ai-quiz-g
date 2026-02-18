@@ -23,17 +23,26 @@ export const HOST_SCRIPTS = {
 export const AI_COMMENTS = {
   CORRECT: [
     "Brilliant job, {team}. That is absolutely correct. You've earned {points} points.",
-    "Spot on, {team}. I knew you had it in you. {points} points added to your score.",
+    "Pwoli saanam {team}! Adipoli performance.",
+    "Eda mone! Happy alle? {team} scored {points} points.",
+    "Mass da! Marana mass {team}!",
     "Wonderful deduction, {team}. That answer is correct. {points} points for you.",
-    "Impeccable, {team}. You make this look easy. {points} points awarded.",
-    "That is the right answer! Well done, {team}. You get {points} points."
+    "Sambhavam Colour Aayi! {points} points for {team}.",
+    "Kiduve... Kidu kidu kiduve {team}!",
+    "Oru rakshayum illa. Awesome answer, {team}!",
+    "That is the right answer! Well done, {team}."
   ],
   WRONG: [
     "Oh, my dear {team}, that is unfortunately incorrect. Don't lose heart.",
-    "I'm afraid that's not quite right, {team}. Good effort, though.",
-    "Missed it by a whisker, {team}. That is incorrect.",
+    "Enthonnadey ithu? Veruthe time waste aakki.",
+    "Nee po mone Dinesha. That is incorrect.",
+    "Ayye... Mosham! {team}, that was wrong.",
+    "Vivaram illayma oru kuttam alla, {team}.",
+    "Shokam... Valiya shokam {team}.",
     "Sorries, {team}. That is not the answer I was looking for.",
-    "That is incorrect, {team}. Shake it off and get ready for the next one."
+    "Best kanna best. Wrong answer.",
+    "Chathi kules...! That was not the right answer.",
+    "Sense venam, sensibility venam, sensitivity venam. Try again next time."
   ]
 };
 
