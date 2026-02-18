@@ -10,7 +10,8 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const QUEUE_DELAY_MS = 250; 
+// Reduced delay for snappier responses
+const QUEUE_DELAY_MS = 50; 
 const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
 
 type QueueItem = {
@@ -44,10 +45,10 @@ const processQueue = async () => {
   const { text, resolve } = requestQueue.shift()!;
   
   try {
-    // Exact spec for Gemini TTS
+    // Simplified prompt for cleaner, faster speech generation
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `In a professional and futuristic AI host voice: ${text}` }] }],
+      contents: [{ parts: [{ text: text }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -103,7 +104,7 @@ export const API = {
     if (nextRound === 'ASK_AI') {
         const dummyQuestion: Question = {
             id: `ask_ai_${Date.now()}`,
-            text: "Oracle Round: Challenge the Core with live search capability.",
+            text: "Ask AI Round: Challenge the AI with a live search question.",
             options: [],
             correctAnswer: -1,
             explanation: "",
@@ -151,7 +152,7 @@ export const API = {
 
             const question: Question = {
                 id: `visual_${Date.now()}`,
-                text: `Identify this neural infrastructure component:`,
+                text: `Identify this component:`,
                 options: data.options,
                 correctAnswer: data.correctIndex,
                 explanation: data.explanation,
@@ -230,8 +231,8 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    if (question.roundType === 'ASK_AI') return `Oracle Round initiated. Challenge my core knowledge.`;
-    if (question.roundType === 'VISUAL') return `Visual identification round. Scan the projection and identify the architecture.`;
+    if (question.roundType === 'ASK_AI') return `Ask AI Round. Challenge me with a question.`;
+    if (question.roundType === 'VISUAL') return `Visual Round. Look at the screen and identify the image.`;
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
     return `${question.text} Options are: ${opts}`;
   },
@@ -251,7 +252,7 @@ export const API = {
     try {
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `User Question: "${userQuestion}"\nSystem: You are Bodhini Core, a quiz architect. Answer concisely using provided tools if needed.`,
+            contents: `User Question: "${userQuestion}"\nSystem: You are an AI Quiz Host. Answer simply and accurately.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
@@ -270,7 +271,7 @@ export const API = {
         localStorage.setItem('DUK_QUIZ_SESSION_V2', JSON.stringify(session));
         return session;
     } catch (e) {
-        return QuizService.setAskAiState('ANSWERING', { response: "My neural link is currently unstable. Please re-submit your query." });
+        return QuizService.setAskAiState('ANSWERING', { response: "I am having trouble connecting. Please ask again." });
     }
   },
 

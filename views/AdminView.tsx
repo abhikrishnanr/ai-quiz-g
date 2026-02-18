@@ -20,7 +20,7 @@ const AdminView: React.FC = () => {
   if (loading || !session) return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950">
       <Activity className="w-16 h-16 text-indigo-500 animate-spin" />
-      <p className="mt-8 text-indigo-400 font-black uppercase tracking-[0.4em] text-xs">Initializing Architect...</p>
+      <p className="mt-8 text-indigo-400 font-black uppercase tracking-[0.4em] text-xs">Loading Admin...</p>
     </div>
   );
 
@@ -84,10 +84,10 @@ const AdminView: React.FC = () => {
               <Cpu className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-black text-white uppercase tracking-tighter">BODHINI CORE <span className="text-indigo-400/50 font-light ml-2">V3_GEN</span></h1>
+              <h1 className="text-3xl font-black text-white uppercase tracking-tighter">HOST CONTROL <span className="text-indigo-400/50 font-light ml-2">V3</span></h1>
               <div className="flex items-center gap-3 mt-1.5">
                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Next Round: {session.nextRoundType}</span>
+                 <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.4em]">Next: {session.nextRoundType}</span>
               </div>
             </div>
           </div>
@@ -97,12 +97,12 @@ const AdminView: React.FC = () => {
                <div className="flex items-center gap-3 px-6 py-3 bg-amber-500/20 border border-amber-500/50 rounded-2xl animate-pulse">
                  <AlertTriangle className="w-5 h-5 text-amber-500" />
                  <Button variant="amber" className="h-10 px-4 py-0" onClick={() => performAction(() => API.toggleHint(true))}>
-                   Grant Hint
+                   Allow Hint
                  </Button>
                </div>
              )}
              <Button variant={confirmReset ? 'danger' : 'secondary'} onClick={handleReset} className="h-14">
-               {confirmReset ? 'Confirm Reset?' : 'Full System Reset'}
+               {confirmReset ? 'Confirm?' : 'Reset Game'}
              </Button>
           </div>
         </header>
@@ -110,7 +110,7 @@ const AdminView: React.FC = () => {
         {/* --- ROUND SELECTION BAR --- */}
         <div className="bg-slate-900/60 backdrop-blur-md p-4 rounded-[2rem] border border-white/5 flex gap-4 overflow-x-auto">
             <div className="px-6 flex items-center justify-center bg-white/5 rounded-2xl border border-white/5">
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] whitespace-nowrap">Protocol Select</span>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em] whitespace-nowrap">Round Type</span>
             </div>
             
             <button 
@@ -134,7 +134,7 @@ const AdminView: React.FC = () => {
                 className={`flex-1 min-w-[160px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${session.currentQuestion?.roundType === 'ASK_AI' ? 'bg-purple-600 border-purple-500 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
             >
                 <Search className="w-4 h-4 text-white" />
-                <span className="text-xs font-black uppercase tracking-wider text-white">Ask AI (Oracle)</span>
+                <span className="text-xs font-black uppercase tracking-wider text-white">Ask AI</span>
             </button>
 
             <button 
@@ -142,7 +142,7 @@ const AdminView: React.FC = () => {
                 className={`flex-1 min-w-[160px] p-4 rounded-2xl border transition-all flex items-center justify-center gap-3 ${session.currentQuestion?.roundType === 'VISUAL' ? 'bg-cyan-600 border-cyan-500 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'}`}
             >
                 <Camera className="w-4 h-4 text-white" />
-                <span className="text-xs font-black uppercase tracking-wider text-white">Neural Vision</span>
+                <span className="text-xs font-black uppercase tracking-wider text-white">Visual</span>
             </button>
         </div>
 
@@ -150,8 +150,8 @@ const AdminView: React.FC = () => {
           <div className="lg:col-span-4 space-y-6">
             <Card className="flex flex-col gap-6">
                <div className="space-y-2">
-                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Neural Generation</h3>
-                 <p className="text-sm text-slate-400">Request a new knowledge fragment from the cloud infrastructure based on current protocol.</p>
+                 <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Next Step</h3>
+                 <p className="text-sm text-slate-400">Generate a new question based on the selected round type.</p>
                </div>
                
                <button 
@@ -160,16 +160,16 @@ const AdminView: React.FC = () => {
                 className="w-full py-10 rounded-[2.5rem] bg-indigo-600 hover:bg-indigo-500 text-white font-black uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-95 flex flex-col items-center gap-4"
                >
                  <RefreshCw className={`w-8 h-8 ${updating ? 'animate-spin' : ''}`} />
-                 LOAD PROTOCOL
+                 NEXT QUESTION
                </button>
 
                <div className="grid grid-cols-2 gap-4 mt-4">
                   <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                     <span className="block text-[8px] font-black text-slate-500 uppercase mb-1">Status</span>
+                     <span className="block text-[8px] font-black text-slate-500 uppercase mb-1">State</span>
                      <span className="text-sm font-black text-white uppercase">{session.status}</span>
                   </div>
                   <div className="p-5 bg-white/5 rounded-2xl border border-white/5">
-                     <span className="block text-[8px] font-black text-slate-500 uppercase mb-1">Pass Count</span>
+                     <span className="block text-[8px] font-black text-slate-500 uppercase mb-1">Passes</span>
                      <span className="text-sm font-black text-white uppercase">{session.passedTeamIds.length}</span>
                   </div>
                </div>
@@ -177,7 +177,7 @@ const AdminView: React.FC = () => {
 
             <Card className="flex-grow overflow-hidden" noPadding>
                <div className="p-7 border-b border-white/5 bg-white/[0.02]">
-                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Neural Rankings</h3>
+                  <h3 className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em]">Scores</h3>
                </div>
                <div className="p-6 space-y-3">
                   {session.teams.sort((a,b) => b.score - a.score).map((t, i) => (
@@ -196,19 +196,19 @@ const AdminView: React.FC = () => {
             {session.currentQuestion?.roundType === 'ASK_AI' ? (
                 <Card className="border-t-[6px] border-t-purple-500" noPadding>
                      <div className="bg-slate-900/60 p-8 grid grid-cols-3 gap-4 border-b border-white/10">
-                        <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
-                        <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
+                        <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Review" />
+                        <ControlButton status={QuizStatus.LIVE} label="Start" icon={Play} variant="success" desc="Begin" />
                         <div className="flex flex-col items-center justify-center p-6 bg-white/5 rounded-[2rem] border border-white/5">
-                            <span className="text-[10px] font-black uppercase text-slate-500">Current AI State</span>
+                            <span className="text-[10px] font-black uppercase text-slate-500">AI Status</span>
                             <span className="text-xl font-black text-purple-400 mt-2">{session.askAiState}</span>
                         </div>
                      </div>
                      
                      <div className="p-12 space-y-8">
                         <div className="flex justify-between items-center">
-                            <h2 className="text-3xl font-black text-white uppercase">Oracle Protocol (Google Search Grounding)</h2>
+                            <h2 className="text-3xl font-black text-white uppercase">Ask AI</h2>
                             {session.activeTeamId && (
-                                <Badge color="amber">Active: {session.teams.find(t => t.id === session.activeTeamId)?.name}</Badge>
+                                <Badge color="amber">Playing: {session.teams.find(t => t.id === session.activeTeamId)?.name}</Badge>
                             )}
                         </div>
 
@@ -219,14 +219,14 @@ const AdminView: React.FC = () => {
                                 className="p-8 bg-indigo-600/20 border border-indigo-500/50 rounded-[2rem] hover:bg-indigo-600/40 disabled:opacity-30 transition-all text-left"
                             >
                                 <Mic className="w-8 h-8 text-indigo-400 mb-4" />
-                                <h3 className="text-lg font-black text-white uppercase">Enable Challenge</h3>
-                                <p className="text-xs text-slate-400 mt-2">Open mic for the active team uplink.</p>
+                                <h3 className="text-lg font-black text-white uppercase">Enable Mic</h3>
+                                <p className="text-xs text-slate-400 mt-2">Let team speak.</p>
                             </button>
                             
                             <div className="p-8 bg-white/5 rounded-[2rem] border border-white/10">
-                                <h3 className="text-xs font-black text-slate-500 uppercase mb-2">Query Intercept</h3>
+                                <h3 className="text-xs font-black text-slate-500 uppercase mb-2">Question</h3>
                                 <p className="text-xl font-medium text-white italic">
-                                    {session.currentAskAiQuestion || "Waiting for signal..."}
+                                    {session.currentAskAiQuestion || "Waiting..."}
                                 </p>
                             </div>
                         </div>
@@ -234,7 +234,7 @@ const AdminView: React.FC = () => {
                         {(session.askAiState === 'ANSWERING' || session.askAiState === 'COMPLETED') && (
                              <div className="space-y-6 animate-in slide-in-from-bottom">
                                 <div className="p-6 bg-purple-500/10 border border-purple-500/30 rounded-[2rem]">
-                                    <h3 className="text-xs font-black text-purple-400 uppercase mb-2">Core Analysis</h3>
+                                    <h3 className="text-xs font-black text-purple-400 uppercase mb-2">AI Answer</h3>
                                     <p className="text-lg text-slate-200">{session.currentAskAiResponse}</p>
                                 </div>
                                 
@@ -243,13 +243,13 @@ const AdminView: React.FC = () => {
                                         onClick={() => performAction(() => API.judgeAskAi('AI_CORRECT'))}
                                         className="p-6 bg-emerald-600 hover:bg-emerald-500 rounded-[2rem] flex items-center justify-center gap-4 text-white font-black uppercase tracking-widest"
                                     >
-                                        <ThumbsUp className="w-6 h-6" /> AI Correct
+                                        <ThumbsUp className="w-6 h-6" /> Correct (No Points)
                                     </button>
                                     <button 
                                         onClick={() => performAction(() => API.judgeAskAi('AI_WRONG'))}
                                         className="p-6 bg-rose-600 hover:bg-rose-500 rounded-[2rem] flex items-center justify-center gap-4 text-white font-black uppercase tracking-widest"
                                     >
-                                        <ThumbsDown className="w-6 h-6" /> AI Wrong (+200)
+                                        <ThumbsDown className="w-6 h-6" /> Wrong (+200 pts)
                                     </button>
                                 </div>
                              </div>
@@ -259,9 +259,9 @@ const AdminView: React.FC = () => {
             ) : (
                 <Card className="border-t-[6px] border-t-indigo-600 overflow-hidden" noPadding>
                 <div className="bg-slate-900/60 p-8 grid grid-cols-4 gap-4 border-b border-white/10">
-                    <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Sync Buffer" />
-                    <ControlButton status={QuizStatus.LIVE} label="Go Live" icon={Play} variant="success" desc="Start Round" />
-                    <ControlButton status={QuizStatus.LOCKED} label="Lock Answer" icon={LockIcon} variant="danger" desc="Stop Submissions" />
+                    <ControlButton status={QuizStatus.PREVIEW} label="Preview" icon={Eye} variant="primary" desc="Review" />
+                    <ControlButton status={QuizStatus.LIVE} label="Start" icon={Play} variant="success" desc="Go Live" />
+                    <ControlButton status={QuizStatus.LOCKED} label="Lock" icon={LockIcon} variant="danger" desc="Stop" />
                     <button
                     onClick={() => performAction(API.revealAnswerAndProcessScores)} 
                     className={`flex flex-col items-center justify-center p-6 rounded-[2rem] border-2 h-32 transition-all duration-500 group ${
@@ -269,7 +269,7 @@ const AdminView: React.FC = () => {
                     }`}
                     >
                     <CheckCircle className="w-7 h-7 mb-3" />
-                    <span className="font-black uppercase text-[10px] tracking-widest">Reveal Result</span>
+                    <span className="font-black uppercase text-[10px] tracking-widest">Reveal Answer</span>
                     </button>
                 </div>
 
@@ -278,12 +278,12 @@ const AdminView: React.FC = () => {
                     <div className="space-y-12 animate-in slide-in-from-bottom-8">
                         <div className="flex justify-between items-start">
                         <Badge color={session.currentQuestion.roundType === 'BUZZER' ? 'amber' : 'blue'}>
-                            {session.currentQuestion.roundType} ROUND
+                            {session.currentQuestion.roundType}
                         </Badge>
-                        {session.currentQuestion.visualUri && <Badge color="green">Visual Assets Loaded</Badge>}
+                        {session.currentQuestion.visualUri && <Badge color="green">Image Loaded</Badge>}
                         </div>
 
-                        <h2 className="text-5xl font-black text-white leading-tight tracking-tighter">{session.currentQuestion.text}</h2>
+                        <h2 className="text-4xl font-black text-white leading-tight tracking-tighter">{session.currentQuestion.text}</h2>
                         
                         <div className="grid grid-cols-2 gap-4">
                         {session.currentQuestion.options.map((opt, i) => (
@@ -309,7 +309,7 @@ const AdminView: React.FC = () => {
                     ) : (
                     <div className="h-[400px] flex flex-col items-center justify-center text-center opacity-40">
                         <BrainCircuit className="w-24 h-24 text-indigo-500 mb-8" />
-                        <h3 className="text-2xl font-black uppercase tracking-[0.4em] text-white">Neural Protocol Pending</h3>
+                        <h3 className="text-2xl font-black uppercase tracking-[0.4em] text-white">No Question Loaded</h3>
                     </div>
                     )}
                 </div>

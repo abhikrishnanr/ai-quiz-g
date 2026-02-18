@@ -7,6 +7,7 @@ import { QuizStatus } from '../types';
 import { Badge } from '../components/SharedUI';
 import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown, BrainCircuit, Search, ExternalLink, Eye } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
+import { HOST_SCRIPTS, AI_COMMENTS } from '../constants';
 
 function decodeBase64(base64: string) {
   const binaryString = atob(base64);
@@ -46,6 +47,7 @@ const DisplayView: React.FC = () => {
   const lastQuestionIdRef = useRef<string | null>(null);
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
+  const lastPassedCountRef = useRef<number>(0);
   const explanationPlayedRef = useRef<boolean>(false);
   const sfxPlayedRef = useRef<boolean>(false);
   const introPlayedRef = useRef<boolean>(false);
@@ -70,10 +72,11 @@ const DisplayView: React.FC = () => {
     
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        const introText = "Neural connection established. Bodhini Core Online. Prepare for knowledge synthesis.";
+        // Updated Intro Text
+        const introText = HOST_SCRIPTS.INTRO;
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
-                if (audio) playAudio(audio, "Bodhini Core Online");
+                if (audio) playAudio(audio, introText);
             });
         }, 1000); 
     }
@@ -111,6 +114,7 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
+    // 1. Reading Question State
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
        SFX.playIntro();
        const audioKey = `read_${currentQuestion.id}`;
@@ -128,45 +132,94 @@ const DisplayView: React.FC = () => {
        }
     }
 
+    // 2. Announce Team Passing
+    if (session.passedTeamIds.length > lastPassedCountRef.current) {
+        const justPassedId = session.passedTeamIds[session.passedTeamIds.length - 1];
+        const passedTeam = session.teams.find(t => t.id === justPassedId);
+        if (passedTeam && audioInitialized) {
+            API.getTTSAudio(`${passedTeam.name} has passed the turn.`).then(audio => {
+                if (audio) playAudio(audio, `${passedTeam.name} Passed`);
+            });
+        }
+    }
+
+    // 3. Announce Answer Lock
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
        if (team && audioInitialized && currentQuestion.roundType !== 'ASK_AI') { 
            SFX.playLock();
-           const lockText = `Transmission received from ${team.name}.`;
+           const lockText = `Answer locked by ${team.name}.`;
            API.getTTSAudio(lockText).then(audio => {
                 if (audio) playAudio(audio, `Answer locked by ${team.name}`);
            });
        }
     }
 
+    // 4. Reveal Results & Commentary
     if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
        sfxPlayedRef.current = true;
        if (currentQuestion.roundType !== 'ASK_AI') {
             const submission = session.submissions[session.submissions.length-1];
-            const isCorrect = submission?.isCorrect;
-            if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
+            
+            // Check if there is a submission to comment on, otherwise it's a Time Up situation
+            if (submission) {
+                const isCorrect = submission.isCorrect;
+                if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
+
+                const team = session.teams.find(t => t.id === submission.teamId);
+                const teamName = team ? team.name : "Team";
+                const points = currentQuestion.points;
+
+                // Pick a random witty comment
+                const templates = isCorrect ? AI_COMMENTS.CORRECT : AI_COMMENTS.WRONG;
+                const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
+                
+                // Construct the commentary
+                const spokenComment = randomTemplate
+                    .replace('{team}', teamName)
+                    .replace('{points}', points.toString());
+                
+                // Queue the audio: Comment first, then explanation if needed
+                setTimeout(() => {
+                    API.getTTSAudio(spokenComment).then(audio => {
+                         if (audio) playAudio(audio, spokenComment);
+                    });
+                }, 800); // Slight delay after SFX
+            } else {
+                // Time Up case
+                SFX.playWrong();
+                API.getTTSAudio(HOST_SCRIPTS.TIME_UP).then(audio => {
+                    if (audio) playAudio(audio, "Time Up");
+                });
+            }
        }
     }
 
+    // 5. Read Explanation (After commentary finishes, usually manually triggered or sequenced, but here simpler)
     if (session.explanationVisible && !explanationPlayedRef.current) {
        explanationPlayedRef.current = true;
-       API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation)).then(audio => {
-         if (audio) playAudio(audio, "Neural Synthesis Complete");
-       });
+       // We add a slight delay to ensure it doesn't overlap perfectly with the commentary if clicked fast
+       setTimeout(() => {
+           API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation)).then(audio => {
+             if (audio) playAudio(audio, "Explanation");
+           });
+       }, 500);
     }
 
     if (session.currentQuestion?.id !== lastQuestionIdRef.current) {
         lastQuestionIdRef.current = session.currentQuestion?.id || null;
         explanationPlayedRef.current = false;
         sfxPlayedRef.current = false;
-        lastSubmissionCountRef.current = 0; 
+        lastSubmissionCountRef.current = 0;
+        lastPassedCountRef.current = 0; 
         lastAskAiStateRef.current = 'IDLE';
     }
     
     lastStatusRef.current = session.status;
     lastSubmissionCountRef.current = session.submissions.length;
-  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible]);
+    lastPassedCountRef.current = session.passedTeamIds.length;
+  }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible, session?.passedTeamIds.length]);
 
   useEffect(() => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI') return;
@@ -174,9 +227,9 @@ const DisplayView: React.FC = () => {
     if (session.askAiState !== lastAskAiStateRef.current) {
         if (session.askAiState === 'PROCESSING' && session.currentAskAiQuestion) {
              const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'Team';
-             const textToRead = `Question from ${teamName}: ${session.currentAskAiQuestion}`;
+             const textToRead = `I am thinking about the question from ${teamName}: ${session.currentAskAiQuestion}`;
              API.getTTSAudio(textToRead).then(audio => {
-                 if (audio) playAudio(audio, `Neural Processing: "${session.currentAskAiQuestion}"`);
+                 if (audio) playAudio(audio, `Thinking: "${session.currentAskAiQuestion}"`);
              });
         }
         if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) {
@@ -188,11 +241,11 @@ const DisplayView: React.FC = () => {
              const isWrong = session.askAiVerdict === 'AI_WRONG';
              const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'the team';
              const verdictText = isWrong 
-                ? `The admin has rejected my answer. 200 credits awarded to ${teamName}.` 
-                : "The admin confirms my analysis. No credits awarded.";
+                ? `My answer was incorrect. ${teamName} gets 200 points. Well played.` 
+                : "My answer was correct. No points awarded this time.";
              if (isWrong) SFX.playWrong(); else SFX.playCorrect();
              setTimeout(() => {
-                API.getTTSAudio(verdictText).then(a => a && playAudio(a, isWrong ? "AI Overridden" : "AI Validated"));
+                API.getTTSAudio(verdictText).then(a => a && playAudio(a, isWrong ? "AI Incorrect" : "AI Correct"));
              }, 500);
         }
         lastAskAiStateRef.current = session.askAiState;
@@ -208,6 +261,9 @@ const DisplayView: React.FC = () => {
         const remaining = Math.max(0, limit - elapsed);
         setTurnTimeLeft(remaining);
         if (remaining <= 5 && remaining > 0) SFX.playTimerTick();
+        if (remaining === 0 && session.status === QuizStatus.LIVE) {
+            // Optional: Trigger auto-lock or voice warning here if needed
+        }
       }, 200);
       return () => clearInterval(interval);
     }
@@ -223,7 +279,8 @@ const DisplayView: React.FC = () => {
                   <div className="w-24 h-24 rounded-full border-4 border-indigo-500/30 flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(99,102,241,0.4)] transition-all group-hover:scale-110">
                     <Power className="w-10 h-10 text-indigo-400 animate-pulse" />
                   </div>
-                  <h1 className="text-4xl font-display font-black text-white uppercase tracking-[0.2em] neon-text">Initialize Neural Link</h1>
+                  <h1 className="text-4xl font-display font-black text-white uppercase tracking-[0.2em] neon-text">Start System</h1>
+                  <p className="text-slate-500 mt-4 uppercase tracking-widest text-xs">Tap to initialize audio</p>
               </div>
           </div>
       );
@@ -246,10 +303,10 @@ const DisplayView: React.FC = () => {
              <div className="flex items-center gap-6 glass-card px-8 py-4 rounded-full border-white/5 bg-white/5">
                 <div className="flex items-center gap-3">
                    <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_15px_#10b981]" />
-                   <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400 font-display">System Intercept Active</span>
+                   <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400 font-display">System Active</span>
                 </div>
                 <div className="h-4 w-[1px] bg-white/10" />
-                <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">Bodhini <span className="text-indigo-500">3.1</span></h1>
+                <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">Quiz <span className="text-indigo-500">Core</span></h1>
              </div>
 
              {isQuestionVisible && (
@@ -265,13 +322,13 @@ const DisplayView: React.FC = () => {
              )}
           </header>
 
-          <main className="flex-grow grid grid-cols-12 gap-12 items-stretch">
+          <main className="flex-grow grid grid-cols-12 gap-12 items-stretch max-h-[calc(100vh-140px)]">
              <div className="col-span-4 flex flex-col justify-center items-center">
                 <AIHostAvatar size="xl" isSpeaking={isSpeaking} />
-                <div className="mt-12 w-full min-h-[140px] flex items-center justify-center">
+                <div className="mt-8 w-full min-h-[100px] flex items-center justify-center">
                    {commentary && (
-                     <div className="bg-slate-950/60 backdrop-blur-3xl border border-indigo-500/20 px-10 py-6 rounded-[2.5rem] animate-in fade-in slide-in-from-bottom-4 text-center shadow-2xl max-w-lg">
-                        <p className="text-indigo-100 text-xl font-sans font-medium italic leading-relaxed">"{commentary}"</p>
+                     <div className="bg-slate-950/60 backdrop-blur-3xl border border-indigo-500/20 px-8 py-4 rounded-[2.5rem] animate-in fade-in slide-in-from-bottom-4 text-center shadow-2xl max-w-lg">
+                        <p className="text-indigo-100 text-lg font-sans font-medium italic leading-relaxed">"{commentary}"</p>
                      </div>
                    )}
                 </div>
@@ -282,28 +339,28 @@ const DisplayView: React.FC = () => {
                    <div className="h-full glass-card rounded-[4rem] border-white/5 bg-white/5 flex flex-col items-center justify-center text-center p-20 relative overflow-hidden">
                        <div className="absolute inset-0 bg-grid-perspective opacity-5" />
                        <BrainCircuit className="w-40 h-40 text-indigo-500/30 mb-12 animate-pulse" />
-                       <h2 className="text-6xl font-display font-black text-white uppercase tracking-tight mb-8">Ready For Neural Uplink</h2>
-                       <p className="text-xl text-slate-500 font-mono tracking-widest uppercase">SCANNING FOR ADMIN BROADCAST...</p>
+                       <h2 className="text-6xl font-display font-black text-white uppercase tracking-tight mb-8">Ready to Join</h2>
+                       <p className="text-xl text-slate-500 font-mono tracking-widest uppercase">WAITING FOR HOST...</p>
                    </div>
                 ) : (
                     currentQuestion.roundType === 'ASK_AI' ? (
                         <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
                              {session.askAiState === 'IDLE' || session.askAiState === 'LISTENING' ? (
                                  <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-purple-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center">
-                                     <Badge color="blue">Primary challenge node: {activeTeam?.name}</Badge>
+                                     <Badge color="blue">Playing: {activeTeam?.name}</Badge>
                                      <div className="mt-12 relative">
                                          <div className="absolute inset-0 bg-purple-500/30 rounded-full animate-ping" />
                                          <div className="w-32 h-32 rounded-full bg-purple-600/20 flex items-center justify-center relative z-10 border border-purple-500/50 shadow-[0_0_60px_rgba(168,85,247,0.4)]">
                                              <Mic className="w-16 h-16 text-purple-400" />
                                          </div>
                                      </div>
-                                     <h2 className="text-5xl font-black text-white uppercase mt-10 animate-pulse tracking-tighter">Awaiting Vocal Uplink...</h2>
+                                     <h2 className="text-5xl font-black text-white uppercase mt-10 animate-pulse tracking-tighter">Waiting for Voice...</h2>
                                  </div>
                              ) : (
-                                 <div className="h-full flex flex-col gap-8">
-                                     <div className="glass-card p-12 rounded-[4rem] bg-white/5 text-center border-white/10 shadow-xl">
-                                         <p className="text-slate-400 text-xs font-black uppercase tracking-[0.4em] mb-4">Challenge Intercepted</p>
-                                         <h2 className="text-4xl font-black text-white leading-tight italic">"{session.currentAskAiQuestion}"</h2>
+                                 <div className="h-full flex flex-col gap-8 max-h-full">
+                                     <div className="glass-card p-8 rounded-[3rem] bg-white/5 text-center border-white/10 shadow-xl shrink-0">
+                                         <p className="text-slate-400 text-xs font-black uppercase tracking-[0.4em] mb-2">Question Asked</p>
+                                         <h2 className="text-2xl font-black text-white leading-tight italic">"{session.currentAskAiQuestion}"</h2>
                                      </div>
                                      
                                      {session.askAiState === 'PROCESSING' && (
@@ -315,27 +372,31 @@ const DisplayView: React.FC = () => {
                                                      <div className="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style={{animationDelay:'0.1s'}} />
                                                      <div className="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style={{animationDelay:'0.2s'}} />
                                                  </div>
-                                                 <Search className="w-24 h-24 text-indigo-400 animate-pulse mx-auto" />
-                                                 <h3 className="text-4xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Scanning Neural Repository...</h3>
-                                                 <div className="text-[10px] text-slate-500 font-mono tracking-widest uppercase">Searching Google Grounding Service...</div>
+                                                 <Search className="w-16 h-16 text-indigo-400 animate-pulse mx-auto" />
+                                                 <h3 className="text-3xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Thinking...</h3>
                                              </div>
                                          </div>
                                      )}
                                      
                                      {session.askAiState === 'ANSWERING' && (
-                                         <div className="flex-grow glass-card p-16 rounded-[4rem] border border-purple-500/30 bg-purple-500/5 flex flex-col items-center justify-center animate-in slide-in-from-bottom shadow-2xl">
-                                             <div className="text-center space-y-10">
-                                                 <Badge color="blue">Uplink Response Generated</Badge>
-                                                 <h2 className="text-4xl font-medium text-white leading-[1.6] max-w-4xl tracking-wide">"{session.currentAskAiResponse}"</h2>
+                                         <div className="flex-grow glass-card p-10 rounded-[3rem] border border-purple-500/30 bg-purple-500/5 flex flex-col items-center justify-start animate-in slide-in-from-bottom shadow-2xl overflow-hidden">
+                                             <div className="text-center space-y-6 w-full h-full flex flex-col">
+                                                 <Badge color="blue">AI Answer</Badge>
+                                                 {/* Optimized scroll area for answer */}
+                                                 <div className="overflow-y-auto custom-scrollbar flex-grow pr-4">
+                                                     <h2 className="text-xl md:text-2xl font-medium text-white leading-[1.6] tracking-wide text-left">
+                                                         {session.currentAskAiResponse}
+                                                     </h2>
+                                                 </div>
                                                  
                                                  {session.groundingUrls && session.groundingUrls.length > 0 && (
-                                                     <div className="pt-10 border-t border-white/10 w-full">
-                                                         <p className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-6">Factual Grounding Sources</p>
-                                                         <div className="flex flex-wrap justify-center gap-5">
+                                                     <div className="pt-6 border-t border-white/10 w-full shrink-0">
+                                                         <p className="text-[10px] font-black uppercase text-indigo-400 tracking-[0.4em] mb-4">Sources</p>
+                                                         <div className="flex flex-wrap justify-center gap-3">
                                                              {session.groundingUrls.slice(0, 3).map((link, idx) => (
-                                                                 <div key={idx} className="flex items-center gap-3 px-6 py-3 bg-white/5 rounded-[2rem] text-xs text-indigo-300 border border-white/5 hover:bg-white/10 transition-all cursor-default">
-                                                                     <ExternalLink className="w-4 h-4" />
-                                                                     {link.title.substring(0, 40)}...
+                                                                 <div key={idx} className="flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-[10px] text-indigo-300 border border-white/5 hover:bg-white/10 transition-all cursor-default">
+                                                                     <ExternalLink className="w-3 h-3" />
+                                                                     {link.title.substring(0, 30)}...
                                                                  </div>
                                                              ))}
                                                          </div>
@@ -346,24 +407,24 @@ const DisplayView: React.FC = () => {
                                      )}
 
                                      {session.askAiVerdict && (
-                                         <div className={`p-16 rounded-[4rem] flex flex-col items-center justify-center text-center flex-grow shadow-[0_0_150px_rgba(0,0,0,0.5)] border-4 transition-all duration-1000 ${
+                                         <div className={`p-10 rounded-[3rem] flex flex-col items-center justify-center text-center flex-grow shadow-[0_0_150px_rgba(0,0,0,0.5)] border-4 transition-all duration-1000 ${
                                              session.askAiVerdict === 'AI_WRONG' ? 'bg-emerald-600/90 border-emerald-400' : 'bg-rose-600/90 border-rose-400'
                                          }`}>
                                               {session.askAiVerdict === 'AI_WRONG' ? (
                                                   <>
-                                                    <div className="p-8 bg-white/10 rounded-full mb-8">
-                                                       <ThumbsDown className="w-32 h-32 text-white animate-bounce" />
+                                                    <div className="p-6 bg-white/10 rounded-full mb-6">
+                                                       <ThumbsDown className="w-20 h-20 text-white animate-bounce" />
                                                     </div>
-                                                    <h2 className="text-8xl font-black text-white uppercase tracking-tighter">AI DEFEATED</h2>
-                                                    <p className="text-3xl font-black uppercase tracking-[0.5em] mt-6 text-emerald-100">+200 Credits Awarded</p>
+                                                    <h2 className="text-6xl font-black text-white uppercase tracking-tighter">AI Wrong</h2>
+                                                    <p className="text-2xl font-black uppercase tracking-[0.5em] mt-4 text-emerald-100">+200 Points</p>
                                                   </>
                                               ) : (
                                                   <>
-                                                    <div className="p-8 bg-white/10 rounded-full mb-8">
-                                                       <ThumbsUp className="w-32 h-32 text-white animate-pulse" />
+                                                    <div className="p-6 bg-white/10 rounded-full mb-6">
+                                                       <ThumbsUp className="w-20 h-20 text-white animate-pulse" />
                                                     </div>
-                                                    <h2 className="text-8xl font-black text-white uppercase tracking-tighter">AI VICTORIOUS</h2>
-                                                    <p className="text-3xl font-black uppercase tracking-[0.5em] mt-6 text-rose-100">Analysis Validated</p>
+                                                    <h2 className="text-6xl font-black text-white uppercase tracking-tighter">AI Correct</h2>
+                                                    <p className="text-2xl font-black uppercase tracking-[0.5em] mt-4 text-rose-100">Confirmed</p>
                                                   </>
                                               )}
                                          </div>
@@ -381,7 +442,7 @@ const DisplayView: React.FC = () => {
                                         <div className="absolute inset-0 bg-[repeating-linear-gradient(0deg,transparent,transparent_2px,rgba(0,0,0,0.1) 3px)] pointer-events-none" />
                                     </div>
                                 )}
-                                <h2 className="relative z-10 text-5xl md:text-6xl font-sans font-bold text-white text-center leading-[1.3] drop-shadow-[0_0_30px_rgba(0,0,0,1)]">
+                                <h2 className="relative z-10 text-4xl md:text-5xl font-sans font-bold text-white text-center leading-[1.3] drop-shadow-[0_0_30px_rgba(0,0,0,1)]">
                                     {currentQuestion.text}
                                 </h2>
                             </div>
@@ -392,14 +453,14 @@ const DisplayView: React.FC = () => {
                                     const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
                                     return (
                                     <div key={i} className={`
-                                        relative overflow-hidden rounded-[3.5rem] p-10 flex items-center gap-10 border transition-all duration-700
+                                        relative overflow-hidden rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700
                                         ${isCorrect ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_100px_rgba(16,185,129,0.5)] scale-105 z-20' : 
                                           isRevealed ? 'bg-slate-900/60 opacity-20' : 'glass-card border-white/10 bg-white/5'}
                                     `}>
-                                        <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center text-3xl font-display font-black shrink-0 ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}`}>
+                                        <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-display font-black shrink-0 ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}`}>
                                             {String.fromCharCode(65+i)}
                                         </div>
-                                        <span className="text-3xl font-sans font-semibold text-white tracking-tight">{opt}</span>
+                                        <span className="text-xl md:text-2xl font-sans font-semibold text-white tracking-tight leading-tight">{opt}</span>
                                     </div>
                                     );
                                 })}
@@ -413,7 +474,7 @@ const DisplayView: React.FC = () => {
                       <div className="bg-slate-950/95 backdrop-blur-3xl border border-indigo-500/50 p-20 rounded-[5rem] text-center shadow-[0_0_250px_rgba(79,70,229,0.7)] transform scale-110">
                          <LockIcon className="w-16 h-16 text-white mx-auto mb-10" />
                          <h3 className="text-8xl font-display font-black text-white uppercase tracking-tighter neon-text">{lockingTeam?.name || "LOCKED"}</h3>
-                         <p className="text-indigo-400 font-black tracking-[0.6em] uppercase text-xs mt-6">UPLINK SEALED</p>
+                         <p className="text-indigo-400 font-black tracking-[0.6em] uppercase text-xs mt-6">ANSWER LOCKED</p>
                       </div>
                    </div>
                 )}
