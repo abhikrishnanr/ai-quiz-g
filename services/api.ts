@@ -10,13 +10,12 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-// Reduced delay for snappier responses
-const QUEUE_DELAY_MS = 50; 
 const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
 
 type QueueItem = {
   text: string;
   resolve: (value: string | undefined) => void;
+  isFallback?: boolean; // Flag to indicate if this is a retry
 };
 
 const requestQueue: QueueItem[] = [];
@@ -42,10 +41,11 @@ const saveToPersistentCache = (key: string, base64: string) => {
 const processQueue = async () => {
   if (isProcessingQueue || requestQueue.length === 0 || !process.env.API_KEY) return;
   isProcessingQueue = true;
-  const { text, resolve } = requestQueue.shift()!;
+  
+  const item = requestQueue.shift()!;
+  const { text, resolve, isFallback } = item;
   
   // Safety: Truncate extremely long text to avoid 500 errors and ensure speed
-  // 400 chars is roughly 60-80 words, plenty for a snappy response.
   const safeText = text.length > 400 ? text.substring(0, 397) + "..." : text;
 
   try {
@@ -56,6 +56,7 @@ const processQueue = async () => {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
+            // Using Kore as default, it generally handles multi-lingual well.
             prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
@@ -65,22 +66,37 @@ const processQueue = async () => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     
     if (base64Audio) {
-      // Cache using the original text key so we don't re-process
+      // Cache ONLY if it's not a specific unique dynamic response (like Ask AI or feedback)
+      // Actually, we can cache everything by text key.
       const cacheKey = text.trim().toLowerCase();
       saveToPersistentCache(cacheKey, base64Audio);
       resolve(base64Audio);
     } else {
-      console.warn("Gemini TTS response missing audio data", response);
-      resolve(undefined);
+      console.warn("Gemini TTS response missing audio data for text:", safeText);
+      // Fallback Logic: If audio is missing (maybe due to script), try English only fallback if not already fallback
+      if (!isFallback) {
+         console.log("Attempting TTS fallback with simplified text...");
+         // Remove non-ascii characters (rough approximation for stripping Malayalam/complex scripts)
+         const englishOnly = text.replace(/[^\x00-\x7F]/g, "").trim() || "Processing response.";
+         if (englishOnly.length > 0 && englishOnly !== text) {
+             // Re-queue at the front
+             requestQueue.unshift({ text: englishOnly, resolve, isFallback: true });
+         } else {
+             resolve(undefined);
+         }
+      } else {
+         resolve(undefined);
+      }
     }
   } catch (error) {
     console.error("Gemini TTS API Failed:", error);
     resolve(undefined);
   } finally {
-    setTimeout(() => {
-      isProcessingQueue = false;
-      processQueue();
-    }, QUEUE_DELAY_MS);
+    isProcessingQueue = false;
+    // Immediate check for next item
+    if (requestQueue.length > 0) {
+        processQueue();
+    }
   }
 };
 
@@ -231,7 +247,7 @@ export const API = {
     
     return new Promise((resolve) => {
       requestQueue.push({ text, resolve });
-      processQueue();
+      if (!isProcessingQueue) processQueue();
     });
   },
 

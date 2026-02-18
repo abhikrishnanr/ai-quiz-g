@@ -117,7 +117,7 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
-    // 1. Reading Question State (Standard/Buzzer)
+    // 1. Reading Question State
     if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE && currentQuestion.roundType !== 'ASK_AI') {
        SFX.playIntro();
        const audioKey = `read_${currentQuestion.id}`;
@@ -144,7 +144,6 @@ const DisplayView: React.FC = () => {
         API.getTTSAudio(text).then(audio => {
             if (audio) {
                 playAudio(audio, `Waiting for ${teamName}...`, () => {
-                    // Start ambient sound after instructions finish
                     SFX.startAmbient();
                 });
             } else {
@@ -183,7 +182,6 @@ const DisplayView: React.FC = () => {
        if (currentQuestion.roundType !== 'ASK_AI') {
             const submission = session.submissions[session.submissions.length-1];
             
-            // Check if there is a submission to comment on, otherwise it's a Time Up situation
             if (submission) {
                 const isCorrect = submission.isCorrect;
                 if (isCorrect) SFX.playCorrect(); else SFX.playWrong();
@@ -192,18 +190,32 @@ const DisplayView: React.FC = () => {
                 const teamName = team ? team.name : "Team";
                 const points = currentQuestion.points;
 
+                // 1. Pick Meme
                 const templates = isCorrect ? AI_COMMENTS.CORRECT : AI_COMMENTS.WRONG;
-                const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
-                
-                const spokenComment = randomTemplate
+                const memeTemplate = templates[Math.floor(Math.random() * templates.length)];
+                const memeText = memeTemplate
                     .replace('{team}', teamName)
                     .replace('{points}', points.toString());
+
+                // 2. Construct Technical Feedback
+                const selectedChar = String.fromCharCode(65 + (submission.answer || 0));
+                const correctChar = String.fromCharCode(65 + currentQuestion.correctAnswer);
+                let technicalFeedback = "";
+                
+                if (isCorrect) {
+                     technicalFeedback = `Option ${selectedChar} is indeed the correct answer.`;
+                } else {
+                     technicalFeedback = `You locked Option ${selectedChar}, which is wrong. The correct answer is Option ${correctChar}.`;
+                }
+
+                // 3. Combine for Speech
+                const spokenComment = `${memeText} ${technicalFeedback}`;
                 
                 setTimeout(() => {
                     API.getTTSAudio(spokenComment).then(audio => {
                          if (audio) playAudio(audio, spokenComment);
                     });
-                }, 800);
+                }, 500); // Slightly reduced delay
             } else {
                 SFX.playWrong();
                 API.getTTSAudio(HOST_SCRIPTS.TIME_UP).then(audio => {
@@ -232,7 +244,7 @@ const DisplayView: React.FC = () => {
         lastAskAiStateRef.current = 'IDLE';
         setAiAnswerRevealed(false);
         setAskAiAnnounced(false);
-        SFX.stopAmbient(); // Stop any lingering ambient sound
+        SFX.stopAmbient(); 
     }
     
     lastStatusRef.current = session.status;
@@ -240,25 +252,24 @@ const DisplayView: React.FC = () => {
     lastPassedCountRef.current = session.passedTeamIds.length;
   }, [session?.status, session?.currentQuestion?.id, session?.submissions.length, session?.explanationVisible, session?.passedTeamIds.length]);
 
+  // Ask AI Effect (UNCHANGED logic, but keeping for completeness)
   useEffect(() => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI') return;
 
     if (session.askAiState !== lastAskAiStateRef.current) {
         if (session.askAiState === 'PROCESSING') {
-             SFX.stopAmbient(); // Stop waiting music
+             SFX.stopAmbient();
              setAiAnswerRevealed(false);
              const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'the team';
-             // Engaging filler speech
              const textToRead = `I am thinking about the answer for ${teamName}. Please wait a moment.`;
              API.getTTSAudio(textToRead).then(audio => {
                  if (audio) playAudio(audio, "Thinking...");
              });
         }
         
-        // When AI has the answer, fetch TTS first, THEN reveal text
         if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) {
              API.getTTSAudio(session.currentAskAiResponse).then(audio => {
-                 setAiAnswerRevealed(true); // Trigger display
+                 setAiAnswerRevealed(true); 
                  if (audio) playAudio(audio, session.currentAskAiResponse);
              });
         }
@@ -310,7 +321,9 @@ const DisplayView: React.FC = () => {
   }
 
   const isQuestionVisible = !!currentQuestion && session.status !== QuizStatus.PREVIEW;
+  // NOTE: We only show the "Locked" overlay if status is LOCKED and NOT REVEALED.
   const lockingTeam = session.submissions.length > 0 ? session.teams.find(t => t.id === session.submissions[session.submissions.length - 1].teamId) : null;
+  const showLockedOverlay = (session.status === QuizStatus.LOCKED || lockingTeam) && currentQuestion?.roundType !== 'ASK_AI' && session.status !== QuizStatus.REVEALED;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative font-sans">
@@ -386,7 +399,6 @@ const DisplayView: React.FC = () => {
                                          <h2 className="text-2xl font-black text-white leading-tight italic">"{session.currentAskAiQuestion}"</h2>
                                      </div>
                                      
-                                     {/* Show Processing UI if in PROCESSING state OR if in ANSWERING state but audio not yet ready */}
                                      {(session.askAiState === 'PROCESSING' || (session.askAiState === 'ANSWERING' && !aiAnswerRevealed)) && (
                                          <div className="flex-grow glass-card p-12 rounded-[4rem] border border-indigo-500/30 bg-indigo-500/5 flex items-center justify-center relative overflow-hidden">
                                              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10" />
@@ -402,12 +414,10 @@ const DisplayView: React.FC = () => {
                                          </div>
                                      )}
                                      
-                                     {/* Show Answer only when audio is ready */}
                                      {session.askAiState === 'ANSWERING' && aiAnswerRevealed && (
                                          <div className="flex-grow glass-card p-10 rounded-[3rem] border border-purple-500/30 bg-purple-500/5 flex flex-col items-center justify-start animate-in slide-in-from-bottom shadow-2xl overflow-hidden">
                                              <div className="text-center space-y-6 w-full h-full flex flex-col">
                                                  <Badge color="blue">AI Answer</Badge>
-                                                 {/* Optimized scroll area for answer */}
                                                  <div className="overflow-y-auto custom-scrollbar flex-grow pr-4">
                                                      <h2 className="text-xl md:text-2xl font-medium text-white leading-[1.6] tracking-wide text-left">
                                                          {session.currentAskAiResponse}
@@ -474,15 +484,38 @@ const DisplayView: React.FC = () => {
 
                             <div className="grid grid-cols-2 gap-8 h-[45%]">
                                 {currentQuestion.options.map((opt, i) => {
+                                    // Highlight Logic
                                     const isRevealed = session.status === QuizStatus.REVEALED;
-                                    const isCorrect = isRevealed && i === currentQuestion.correctAnswer;
+                                    const isCorrectOption = i === currentQuestion.correctAnswer;
+                                    
+                                    // Determine if this option was selected by the locking team
+                                    const submission = session.submissions.length > 0 ? session.submissions[session.submissions.length - 1] : null;
+                                    const isSelectedByTeam = submission?.answer === i;
+                                    const isWrongSelection = isRevealed && isSelectedByTeam && !isCorrectOption;
+
+                                    // Determine Style Class
+                                    let styleClass = 'glass-card border-white/10 bg-white/5'; // Default
+                                    
+                                    if (isRevealed) {
+                                        if (isCorrectOption) {
+                                            styleClass = 'bg-emerald-600 border-emerald-400 shadow-[0_0_100px_rgba(16,185,129,0.5)] scale-105 z-20';
+                                        } else if (isWrongSelection) {
+                                            styleClass = 'bg-rose-600 border-rose-400 shadow-[0_0_60px_rgba(244,63,94,0.4)] opacity-100';
+                                        } else {
+                                            styleClass = 'bg-slate-900/60 opacity-20 blur-sm'; // Dim others
+                                        }
+                                    }
+
                                     return (
                                     <div key={i} className={`
                                         relative overflow-hidden rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700
-                                        ${isCorrect ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_100px_rgba(16,185,129,0.5)] scale-105 z-20' : 
-                                          isRevealed ? 'bg-slate-900/60 opacity-20' : 'glass-card border-white/10 bg-white/5'}
+                                        ${styleClass}
                                     `}>
-                                        <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-display font-black shrink-0 ${isCorrect ? 'bg-white text-emerald-600' : 'bg-white/10 text-indigo-300'}`}>
+                                        <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-display font-black shrink-0 ${
+                                            isRevealed && isCorrectOption ? 'bg-white text-emerald-600' : 
+                                            isRevealed && isWrongSelection ? 'bg-white text-rose-600' :
+                                            'bg-white/10 text-indigo-300'
+                                        }`}>
                                             {String.fromCharCode(65+i)}
                                         </div>
                                         <span className="text-xl md:text-2xl font-sans font-semibold text-white tracking-tight leading-tight">{opt}</span>
@@ -494,7 +527,7 @@ const DisplayView: React.FC = () => {
                     )
                 )}
 
-                {(session.status === QuizStatus.LOCKED || lockingTeam) && currentQuestion?.roundType !== 'ASK_AI' && !session.submissions.find(s => s.teamId === activeTeam?.id)?.isCorrect && (
+                {showLockedOverlay && !session.submissions.find(s => s.teamId === activeTeam?.id)?.isCorrect && (
                    <div className="absolute inset-0 z-50 flex items-center justify-center pointer-events-none animate-in zoom-in duration-300">
                       <div className="bg-slate-950/95 backdrop-blur-3xl border border-indigo-500/50 p-20 rounded-[5rem] text-center shadow-[0_0_250px_rgba(79,70,229,0.7)] transform scale-110">
                          <LockIcon className="w-16 h-16 text-white mx-auto mb-10" />
