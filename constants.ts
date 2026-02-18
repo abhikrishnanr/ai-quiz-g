@@ -22,27 +22,24 @@ export const HOST_SCRIPTS = {
 
 export const AI_COMMENTS = {
   CORRECT: [
-    "Brilliant job, {team}. That is absolutely correct. You've earned {points} points.",
-    "Pwoli saanam {team}! Adipoli performance.",
-    "Eda mone! Happy alle? {team} scored {points} points.",
-    "Mass da! Marana mass {team}!",
-    "Wonderful deduction, {team}. That answer is correct. {points} points for you.",
-    "Sambhavam Colour Aayi! {points} points for {team}.",
-    "Kiduve... Kidu kidu kiduve {team}!",
-    "Oru rakshayum illa. Awesome answer, {team}!",
-    "That is the right answer! Well done, {team}."
+    "കലക്കി! That is absolutely correct. {points} points for {team}.",
+    "പൊളിച്ചു! Brilliant job, {team}. You've earned {points} points.",
+    "അടി സക്കെ! Well done, that is the right answer.",
+    "കിടുവേ! Awesome performance, {team}.",
+    "സംഭവം കളറായി! You have earned {points} points.",
+    "ഒരു രക്ഷയുമില്ല! Amazing deduction, {team}.",
+    "എടാ മോനേ! That answer is correct.",
+    "മാസ്സ്! Superb work, {team}."
   ],
   WRONG: [
-    "Oh, my dear {team}, that is unfortunately incorrect. Don't lose heart.",
-    "Enthonnadey ithu? Veruthe time waste aakki.",
-    "Nee po mone Dinesha. That is incorrect.",
-    "Ayye... Mosham! {team}, that was wrong.",
-    "Vivaram illayma oru kuttam alla, {team}.",
-    "Shokam... Valiya shokam {team}.",
-    "Sorries, {team}. That is not the answer I was looking for.",
-    "Best kanna best. Wrong answer.",
-    "Chathi kules...! That was not the right answer.",
-    "Sense venam, sensibility venam, sensitivity venam. Try again next time."
+    "എന്തോന്നടേ ഇത്? That is unfortunately incorrect.",
+    "അയ്യേ... മോശം! That answer is wrong.",
+    "നീ പോ മോനേ ദിനേശാ. That is not the correct answer.",
+    "ചതി കുലേ! I am afraid that is incorrect.",
+    "ശോകം... വലിയ ശോകം. That was not the answer I was looking for.",
+    "വിവരമില്ലായ്മ ഒരു കുറ്റമല്ല. But that answer is wrong.",
+    "സെൻസ് വേണം, സെൻസിബിലിറ്റി വേണം, സെൻസിറ്റിവിറ്റി വേണം. Try again next time.",
+    "അളിയാ... തെറ്റിപ്പോയി. Sorry, {team}."
   ]
 };
 
