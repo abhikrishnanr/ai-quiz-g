@@ -3,6 +3,11 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty, AskAiState } from '../types';
 import { QuizService } from './mockBackend';
 
+// Ensure API Key is present. The SDK will throw if this is missing, but we can fail fast.
+if (!process.env.API_KEY) {
+    console.error("API_KEY is missing from environment variables.");
+}
+
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const QUEUE_DELAY_MS = 250; 
@@ -39,9 +44,10 @@ const processQueue = async () => {
   const { text, resolve } = requestQueue.shift()!;
   
   try {
+    // Exact spec for Gemini TTS
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: `In a clear, professional, and helpful tone: ${text}` }] }],
+      contents: [{ parts: [{ text: `In a professional and futuristic AI host voice: ${text}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -53,15 +59,17 @@ const processQueue = async () => {
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    
     if (base64Audio) {
       const cacheKey = text.trim().toLowerCase();
       saveToPersistentCache(cacheKey, base64Audio);
       resolve(base64Audio);
     } else {
+      console.warn("Gemini TTS response missing audio data", response);
       resolve(undefined);
     }
   } catch (error) {
-    console.error("Gemini TTS Failed", error);
+    console.error("Gemini TTS API Failed:", error);
     resolve(undefined);
   } finally {
     setTimeout(() => {
@@ -258,7 +266,6 @@ export const API = {
             .map((chunk: any) => ({ title: chunk.web.title, uri: chunk.web.uri }));
 
         let session = await QuizService.setAskAiState('ANSWERING', { response: aiText });
-        // Manually update session with links via service
         session.groundingUrls = links;
         localStorage.setItem('DUK_QUIZ_SESSION_V2', JSON.stringify(session));
         return session;
