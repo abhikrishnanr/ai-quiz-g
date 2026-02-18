@@ -1,5 +1,5 @@
 
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, Suspense } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Float, Sparkles, Stars, Trail } from '@react-three/drei';
 import * as THREE from 'three';
@@ -9,157 +9,245 @@ interface AIHostAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-const CoreMaterial = new THREE.MeshStandardMaterial({
-  color: new THREE.Color('#4f46e5'),
-  emissive: new THREE.Color('#6366f1'),
+// -- Materials --
+const WhiteGlowMaterial = new THREE.MeshStandardMaterial({
+  color: new THREE.Color('#ffffff'),
+  emissive: new THREE.Color('#ffffff'),
   emissiveIntensity: 2,
-  roughness: 0.1,
-  metalness: 0.8,
+  toneMapped: false,
+  roughness: 0,
+  metalness: 0,
 });
 
-const RingMaterial = new THREE.MeshStandardMaterial({
-  color: new THREE.Color('#a5b4fc'),
-  emissive: new THREE.Color('#818cf8'),
-  emissiveIntensity: 0.5,
+const TechRingMaterial = new THREE.MeshStandardMaterial({
+  color: new THREE.Color('#6366f1'), // Indigo
+  emissive: new THREE.Color('#4f46e5'),
+  emissiveIntensity: 1,
   roughness: 0.2,
-  metalness: 1,
+  metalness: 0.8,
   transparent: true,
-  opacity: 0.6,
+  opacity: 0.4,
   side: THREE.DoubleSide
 });
 
-const NeuralCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
+const DotMaterial = new THREE.MeshBasicMaterial({
+  color: new THREE.Color('#a5b4fc'),
+});
+
+const DashMaterial = new THREE.MeshBasicMaterial({
+  color: new THREE.Color('#818cf8'),
+  transparent: true,
+  opacity: 0.6
+});
+
+// -- Components --
+
+const WhiteCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
   const meshRef = useRef<THREE.Mesh>(null);
-  const lightRef = useRef<THREE.PointLight>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
-    if (!meshRef.current || !lightRef.current) return;
+    if (!meshRef.current || !glowRef.current) return;
     const time = state.clock.getElapsedTime();
     
-    // Rotation
-    meshRef.current.rotation.y += isSpeaking ? 0.05 : 0.01;
-    meshRef.current.rotation.z = Math.sin(time * 0.5) * 0.1;
-
-    // Pulse Effect (Amplitude Simulation)
+    // Core Pulse
+    // If speaking, rapid erratic pulse. If idle, slow breathing.
     const baseScale = 1;
-    const pulse = isSpeaking ? Math.sin(time * 20) * 0.15 + (Math.random() * 0.1) : Math.sin(time * 2) * 0.05;
-    const scale = baseScale + pulse;
-    meshRef.current.scale.set(scale, scale, scale);
-
-    // Light Intensity Pulse
-    lightRef.current.intensity = isSpeaking ? 4 + Math.random() * 2 : 2 + Math.sin(time) * 0.5;
+    let pulse = 0;
     
-    // Color shift
-    const colorTime = time * 0.5;
-    const hue = (colorTime % 10) / 10;
-    // meshRef.current.material.emissive.setHSL(0.6 + Math.sin(time)*0.1, 1, 0.5);
+    if (isSpeaking) {
+        // Speech amplitude simulation
+        pulse = Math.sin(time * 15) * 0.15 + Math.cos(time * 30) * 0.1; 
+        meshRef.current.material.emissiveIntensity = 3 + Math.sin(time * 20) * 1;
+    } else {
+        // Idle breathing
+        pulse = Math.sin(time * 2) * 0.05;
+        meshRef.current.material.emissiveIntensity = 2 + Math.sin(time * 2) * 0.5;
+    }
+
+    const scale = baseScale + pulse;
+    meshRef.current.scale.setScalar(scale);
+    
+    // Outer Glow Shell - rotates and scales slightly differently
+    glowRef.current.scale.setScalar(scale * 1.4);
+    glowRef.current.rotation.z -= 0.01;
+    glowRef.current.rotation.x += 0.01;
   });
 
   return (
     <group>
-      <mesh ref={meshRef} material={CoreMaterial}>
-        <icosahedronGeometry args={[1, 4]} />
+      {/* Solid intense core */}
+      <mesh ref={meshRef} material={WhiteGlowMaterial}>
+        <icosahedronGeometry args={[0.8, 4]} />
       </mesh>
-      <pointLight ref={lightRef} distance={10} decay={2} color="#818cf8" />
+      
+      {/* Outer transparent glow shell */}
+      <mesh ref={glowRef}>
+        <icosahedronGeometry args={[0.85, 2]} />
+        <meshBasicMaterial color="#4f46e5" transparent opacity={0.15} wireframe />
+      </mesh>
+      
+      {/* Dynamic Point Light */}
+      <pointLight distance={8} decay={2} intensity={4} color="#ffffff" />
+      <pointLight distance={12} decay={2} intensity={2} color="#6366f1" />
     </group>
   );
 };
 
-const GyroRing: React.FC<{ radius: number; speed: number; axis: [number, number, number]; thickness?: number }> = ({ radius, speed, axis, thickness = 0.02 }) => {
-  const ref = useRef<THREE.Group>(null);
-  
-  useFrame((_, delta) => {
-    if (ref.current) {
-        ref.current.rotation.x += axis[0] * speed * delta;
-        ref.current.rotation.y += axis[1] * speed * delta;
-        ref.current.rotation.z += axis[2] * speed * delta;
-    }
-  });
+// A ring made of dashed segments
+const DashRing: React.FC<{ radius: number; count: number; width: number; height: number; speed: number; color?: string }> = ({ radius, count, width, height, speed, color }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    
+    useFrame((_, delta) => {
+        if (groupRef.current) {
+            groupRef.current.rotation.z += speed * delta;
+        }
+    });
 
-  return (
-    <group ref={ref}>
-        <mesh material={RingMaterial}>
-            <torusGeometry args={[radius, thickness, 16, 100]} />
-        </mesh>
-    </group>
-  );
+    const segments = useMemo(() => {
+        const segs = [];
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            segs.push(
+                <mesh key={i} position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]} rotation={[0, 0, angle]}>
+                    <planeGeometry args={[width, height]} />
+                    <meshBasicMaterial color={color || '#818cf8'} side={THREE.DoubleSide} transparent opacity={0.6} />
+                </mesh>
+            );
+        }
+        return segs;
+    }, [count, radius, width, height, color]);
+
+    return <group ref={groupRef}>{segments}</group>;
 };
 
-const AmplitudeRing: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
-    const ref = useRef<THREE.Group>(null);
-    const barsRef = useRef<THREE.Mesh[]>([]);
+// A ring of dots rotating
+const DotRing: React.FC<{ radius: number; count: number; speed: number; size: number }> = ({ radius, count, speed, size }) => {
+    const groupRef = useRef<THREE.Group>(null);
 
-    const bars = useMemo(() => {
-        return new Array(48).fill(0).map((_, i) => {
-            const angle = (i / 48) * Math.PI * 2;
-            return {
-                position: [Math.cos(angle) * 2.2, Math.sin(angle) * 2.2, 0] as [number, number, number],
-                rotation: [0, 0, angle + Math.PI/2] as [number, number, number]
-            };
-        });
-    }, []);
+    useFrame((_, delta) => {
+        if (groupRef.current) {
+            groupRef.current.rotation.z += speed * delta; // Direction controlled by sign of speed
+        }
+    });
+
+    const dots = useMemo(() => {
+        const d = [];
+        for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2;
+            d.push(
+                <mesh key={i} position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]}>
+                    <circleGeometry args={[size, 8]} />
+                    <primitive object={DotMaterial} />
+                </mesh>
+            );
+        }
+        return d;
+    }, [count, radius, size]);
+
+    return <group ref={groupRef}>{dots}</group>;
+};
+
+// Complex Outer Ring Structure
+const ComplexOuterRig: React.FC = () => {
+    const rigRef = useRef<THREE.Group>(null);
+    
+    useFrame((_, delta) => {
+        if (rigRef.current) {
+            // Slowly tumble the entire outer rig for 3D depth
+            rigRef.current.rotation.x = Math.sin(Date.now() * 0.0005) * 0.2;
+            rigRef.current.rotation.y = Math.cos(Date.now() * 0.0005) * 0.2;
+        }
+    });
+
+    return (
+        <group ref={rigRef}>
+            {/* 1. Thick Glassy Ring */}
+            <mesh rotation={[Math.PI / 2, 0, 0]}>
+                <torusGeometry args={[2.8, 0.15, 16, 100]} />
+                <primitive object={TechRingMaterial} />
+            </mesh>
+
+            {/* 2. Inner Pattern Ring (Dashes) - Clockwise */}
+            <DashRing radius={2.4} count={24} width={0.1} height={0.4} speed={0.2} color="#a5b4fc" />
+
+            {/* 3. Outer Pattern Ring (Fine Dashes) - Counter-Clockwise */}
+            <DashRing radius={3.2} count={60} width={0.05} height={0.2} speed={-0.1} color="#4f46e5" />
+
+            {/* 4. Dots Orbiting - Anti-clockwise */}
+            <DotRing radius={3.0} count={12} speed={-0.4} size={0.08} />
+
+            {/* 5. Angled Orbital Ring */}
+            <group rotation={[0.5, 0.5, 0]}>
+                 <mesh>
+                    <torusGeometry args={[3.5, 0.02, 16, 100]} />
+                    <meshBasicMaterial color="#818cf8" transparent opacity={0.3} />
+                 </mesh>
+                 <DotRing radius={3.5} count={3} speed={0.8} size={0.15} />
+            </group>
+        </group>
+    );
+};
+
+const AmplitudeSpikes: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
+    const count = 32;
+    const radius = 1.6;
+    const bars = useRef<THREE.Mesh[]>([]);
 
     useFrame((state) => {
-        if (!ref.current) return;
-        ref.current.rotation.z -= 0.002;
-        
-        barsRef.current.forEach((bar, i) => {
+        const t = state.clock.elapsedTime;
+        bars.current.forEach((bar, i) => {
             if (!bar) return;
-            // Randomize amplitude if speaking
-            let scaleY = 1;
+            let targetScale = 0.1;
             if (isSpeaking) {
-                const noise = Math.sin(state.clock.elapsedTime * 10 + i) * 0.5 + 0.5;
-                scaleY = 1 + noise * 3 * Math.random();
-            } else {
-                scaleY = 0.2;
+                // Noise function simulation
+                const noise = Math.sin(t * 20 + i * 0.5) * 0.5 + 0.5;
+                targetScale = 0.5 + noise * 1.5; // Scale between 0.5 and 2.0
             }
-            bar.scale.y += (scaleY - bar.scale.y) * 0.2; // Smooth lerp
-            // @ts-ignore
-            bar.material.opacity = isSpeaking ? 0.8 : 0.2;
+            bar.scale.y += (targetScale - bar.scale.y) * 0.2;
+            bar.rotation.z += 0.001; // subtle drift of individual bars? No, array rotation handles that.
         });
     });
 
     return (
-        <group ref={ref}>
-            {bars.map((props, i) => (
-                <mesh 
-                    key={i} 
-                    ref={(el) => { if(el) barsRef.current[i] = el; }}
-                    position={props.position} 
-                    rotation={props.rotation}
-                >
-                    <boxGeometry args={[0.05, 0.4, 0.02]} />
-                    <meshBasicMaterial color="#a5b4fc" transparent opacity={0.3} />
-                </mesh>
-            ))}
+        <group rotation={[0, 0, Math.PI / 4]}> {/* Tilted base angle */}
+            {new Array(count).fill(0).map((_, i) => {
+                const angle = (i / count) * Math.PI * 2;
+                return (
+                    <mesh
+                        key={i}
+                        ref={(el) => { if (el) bars.current[i] = el; }}
+                        position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]}
+                        rotation={[0, 0, angle + Math.PI / 2]}
+                    >
+                        <boxGeometry args={[0.08, 0.4, 0.02]} /> {/* Initial size, Y scaled by audio */}
+                        <meshBasicMaterial color="#c7d2fe" transparent opacity={0.8} />
+                    </mesh>
+                );
+            })}
         </group>
     );
-}
+};
 
 const Scene: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
   return (
     <>
       <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} intensity={1} color="#4338ca" />
-      <pointLight position={[-10, -10, -10]} intensity={0.5} color="#c084fc" />
       
-      <Float speed={2} rotationIntensity={0.5} floatIntensity={0.5}>
-        <NeuralCore isSpeaking={isSpeaking} />
+      <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
         
-        {/* Inner Fast Ring */}
-        <GyroRing radius={1.4} speed={1.5} axis={[1, 0.5, 0]} thickness={0.03} />
-        
-        {/* Middle Ring */}
-        <GyroRing radius={1.7} speed={1.0} axis={[0.2, 1, 0.2]} thickness={0.02} />
-        
-        {/* Outer Slow Ring */}
-        <GyroRing radius={2.0} speed={0.5} axis={[0, 0.2, 1]} thickness={0.04} />
+        {/* The Central AI Brain */}
+        <WhiteCore isSpeaking={isSpeaking} />
 
-        {/* Amplitude Visualizer Ring */}
-        <AmplitudeRing isSpeaking={isSpeaking} />
+        {/* The Audio Reactive Layer */}
+        <AmplitudeSpikes isSpeaking={isSpeaking} />
+
+        {/* The Structural UI Layer */}
+        <ComplexOuterRig />
+
       </Float>
 
-      <Sparkles count={50} scale={4} size={2} speed={0.4} opacity={0.5} color="#a5b4fc" />
+      <Sparkles count={40} scale={5} size={3} speed={0.4} opacity={0.5} color="#a5b4fc" />
       <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={1} />
     </>
   );
@@ -170,15 +258,23 @@ export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking = false, 
     sm: 'w-24 h-24',
     md: 'w-48 h-48',
     lg: 'w-80 h-80',
-    xl: 'w-[500px] h-[500px]' 
+    xl: 'w-[600px] h-[600px]' 
   };
 
   return (
-    <div className={`${sizeMap[size]} relative mx-auto`}>
-      <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-3xl animate-pulse" />
-      <Canvas camera={{ position: [0, 0, 6], fov: 45 }} gl={{ antialias: true, alpha: true }}>
-        <Scene isSpeaking={isSpeaking} />
-      </Canvas>
+    <div className={`${sizeMap[size]} relative mx-auto`} style={{ minHeight: '300px' }}>
+      {/* Background glow for integration */}
+      <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-[60px] animate-pulse pointer-events-none" />
+      
+      <Suspense fallback={
+          <div className="w-full h-full flex items-center justify-center">
+              <div className="w-12 h-12 bg-white rounded-full animate-ping opacity-20" />
+          </div>
+      }>
+        <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true, alpha: true }}>
+            <Scene isSpeaking={isSpeaking} />
+        </Canvas>
+      </Suspense>
     </div>
   );
 };
