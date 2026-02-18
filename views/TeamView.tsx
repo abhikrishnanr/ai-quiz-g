@@ -8,7 +8,7 @@ import {
   CheckCircle2, AlertCircle, Clock, Zap, LogOut, 
   Sparkles, MessageSquare, BrainCircuit, Waves, 
   Lock as LockIcon, Activity, HandMetal, Mic, Send, Eye,
-  ArrowRight
+  ArrowRight, Volume2
 } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
@@ -27,6 +27,7 @@ const TeamView: React.FC = () => {
   const mySubmission = session?.submissions.find(s => s.teamId === selectedTeam);
   const myTeam = session?.teams.find(t => t.id === selectedTeam);
   const isMyTurn = session?.activeTeamId === selectedTeam;
+  const isReading = session?.isReading; // Ensure reading state is captured
 
   useEffect(() => {
     if (session?.status === QuizStatus.PREVIEW) {
@@ -38,7 +39,8 @@ const TeamView: React.FC = () => {
 
   // Timer Check for Team
   useEffect(() => {
-    if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && isMyTurn && session.turnStartTime) {
+    // Timer only counts if NOT reading
+    if (session?.status === QuizStatus.LIVE && currentQuestion?.roundType === 'STANDARD' && isMyTurn && session.turnStartTime && !isReading) {
         const checkTimer = () => {
             const elapsed = (Date.now() - session.turnStartTime!) / 1000;
             if (elapsed > 30 && !timeExpired) {
@@ -50,7 +52,7 @@ const TeamView: React.FC = () => {
         const interval = setInterval(checkTimer, 500);
         return () => clearInterval(interval);
     }
-  }, [session?.status, currentQuestion, isMyTurn, session?.turnStartTime, timeExpired]);
+  }, [session?.status, currentQuestion, isMyTurn, session?.turnStartTime, timeExpired, isReading]);
 
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
@@ -227,6 +229,9 @@ const TeamView: React.FC = () => {
       // If time expired in Standard round, lock active team
       const timeLock = timeExpired && currentQuestion.roundType === 'STANDARD';
 
+      // Lock input while reading
+      const inputLocked = isLocked || timeLock || isReading;
+
       return (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in slide-in-from-bottom-8">
            <div className="lg:col-span-4 space-y-8">
@@ -246,7 +251,7 @@ const TeamView: React.FC = () => {
 
               {isMyTurn && !mySubmission && currentQuestion.roundType === 'STANDARD' && (
                 <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 space-y-6">
-                  <Button variant="primary" className="w-full h-20 rounded-3xl text-lg" disabled={session.requestedHint || session.hintVisible || isSubmitting || timeLock} onClick={handleRequestHint}>
+                  <Button variant="primary" className="w-full h-20 rounded-3xl text-lg" disabled={session.requestedHint || session.hintVisible || isSubmitting || inputLocked} onClick={handleRequestHint}>
                     {session.hintVisible ? 'Hint Given' : session.requestedHint ? 'Asked Admin' : 'Need Hint'}
                   </Button>
                 </div>
@@ -268,6 +273,8 @@ const TeamView: React.FC = () => {
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                
+                {/* Overlay for Time Expired / Locked */}
                 {(isLocked || timeLock) && !mySubmission && (
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md z-30 flex items-center justify-center rounded-[3rem] border border-white/5">
                         <div className="bg-slate-900 border border-rose-500/50 px-12 py-6 rounded-full flex items-center gap-6">
@@ -276,16 +283,26 @@ const TeamView: React.FC = () => {
                         </div>
                     </div>
                 )}
+                
+                {/* Overlay for Reading Phase */}
+                {isReading && !mySubmission && !isLocked && (
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm z-30 flex items-center justify-center rounded-[3rem] border border-indigo-500/30">
+                        <div className="bg-indigo-900/40 border border-indigo-500/50 px-12 py-6 rounded-full flex items-center gap-6 shadow-[0_0_50px_rgba(79,70,229,0.5)]">
+                          <Volume2 className="w-6 h-6 text-indigo-400 animate-pulse" />
+                          <span className="text-sm font-black uppercase text-indigo-400 tracking-[0.4em]">READING QUESTION...</span>
+                        </div>
+                    </div>
+                )}
 
                 {currentQuestion.options.map((opt, i) => (
-                  <button key={i} disabled={!!mySubmission || !canPlay || isLocked || timeLock} onClick={() => setSelectedAnswer(i)} className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${selectedAnswer === i ? 'bg-white border-white text-slate-950 shadow-xl' : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'}`}>
+                  <button key={i} disabled={!!mySubmission || !canPlay || inputLocked} onClick={() => setSelectedAnswer(i)} className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${selectedAnswer === i ? 'bg-white border-white text-slate-950 shadow-xl' : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'}`}>
                     <span className={`w-14 h-14 rounded-2xl flex items-center justify-center mr-8 font-black text-2xl ${selectedAnswer === i ? 'bg-slate-900 text-white' : 'bg-white/10 text-slate-500'}`}>{String.fromCharCode(65+i)}</span>
                     <span className="text-2xl font-bold tracking-tight">{opt}</span>
                   </button>
                 ))}
               </div>
 
-              {!mySubmission && canPlay && !isLocked && !timeLock && (
+              {!mySubmission && canPlay && !inputLocked && (
                   <div className="flex gap-4">
                         <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className={`flex-1 py-12 text-white rounded-[4rem] text-4xl font-black uppercase tracking-tighter shadow-2xl transition-all duration-700 active:scale-95 ${selectedAnswer === null ? 'bg-slate-900/50 opacity-40' : isBuzzer ? 'bg-amber-600' : isVisual ? 'bg-cyan-600' : 'bg-indigo-600'}`}>
                         {isBuzzer ? 'BUZZ IN' : 'SUBMIT ANSWER'}

@@ -12,34 +12,32 @@ export const COLORS = {
 };
 
 export const HOST_SCRIPTS = {
-  // Updated Intro as requested
-  INTRO: "Digital University AI Quiz Platform online. Welcome teams to this six round event. Four rounds will be standard rounds, one buzzer round, and one Ask the AI round. Let's do this. Let's start the quiz!",
-  WARNING_10S: "Just 10 seconds remaining, darlings.",
+  INTRO: "Digital University AI Quiz Platform online. Welcome teams. Let's start the quiz!",
+  WARNING_10S: "Just 10 seconds remaining.",
   TIME_UP: "Time is up. Let's move forward.",
-  // New specific script for Ask AI
-  ASK_AI_INTRO: "{team}, please click the microphone button to ask your question. If there are any errors in transcription, use the text editor to correct them before sending. I am waiting."
+  ASK_AI_INTRO: "{team}, please ask your question now."
 };
 
 export const AI_COMMENTS = {
   CORRECT: [
-    "കലക്കി! That is absolutely correct. {points} points for {team}.",
-    "പൊളിച്ചു! Brilliant job, {team}. You've earned {points} points.",
-    "അടി സക്കെ! Well done, that is the right answer.",
-    "കിടുവേ! Awesome performance, {team}.",
-    "സംഭവം കളറായി! You have earned {points} points.",
-    "ഒരു രക്ഷയുമില്ല! Amazing deduction, {team}.",
-    "എടാ മോനേ! That answer is correct.",
-    "മാസ്സ്! Superb work, {team}."
+    "കലക്കി! (Kalakki!)",
+    "പൊളിച്ചു! (Polichu!)",
+    "അടി സക്കെ! (Adi Sakke!)",
+    "കിടുവേ! (Kiduve!)",
+    "സംഭവം കളറായി! (Sambhavam Colour Aayi!)",
+    "ഒരു രക്ഷയുമില്ല! (Oru Rakshayumilla!)",
+    "എടാ മോനേ! (Eda Mone!)",
+    "മാസ്സ്! (Mass!)"
   ],
   WRONG: [
-    "എന്തോന്നടേ ഇത്? That is unfortunately incorrect.",
-    "അയ്യേ... മോശം! That answer is wrong.",
-    "നീ പോ മോനേ ദിനേശാ. That is not the correct answer.",
-    "ചതി കുലേ! I am afraid that is incorrect.",
-    "ശോകം... വലിയ ശോകം. That was not the answer I was looking for.",
-    "വിവരമില്ലായ്മ ഒരു കുറ്റമല്ല. But that answer is wrong.",
-    "സെൻസ് വേണം, സെൻസിബിലിറ്റി വേണം, സെൻസിറ്റിവിറ്റി വേണം. Try again next time.",
-    "അളിയാ... തെറ്റിപ്പോയി. Sorry, {team}."
+    "എന്തോന്നടേ ഇത്? (Enthonnade Ithu?)",
+    "അയ്യേ... മോശം! (Ayye... Mosham!)",
+    "നീ പോ മോനേ ദിനേശാ. (Nee Po Mone Dinesha.)",
+    "ചതി കുലേ! (Chathi Kule!)",
+    "ശോകം... വലിയ ശോകം. (Shokam... Valiya Shokam.)",
+    "വിവരമില്ലായ്മ ഒരു കുറ്റമല്ല. (Vivaramillayma Oru Kuttamalla.)",
+    "സെൻസ് വേണം, സെൻസിബിലിറ്റി വേണം. (Sense Venam, Sensibility Venam.)",
+    "അളിയാ... തെറ്റിപ്പോയി. (Aliya... Thettippoyi.)"
   ]
 };
 

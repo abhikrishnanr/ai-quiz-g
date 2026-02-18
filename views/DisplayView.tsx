@@ -125,15 +125,19 @@ const DisplayView: React.FC = () => {
 
     if ((session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE && currentQuestion.roundType !== 'ASK_AI') || (isStandardLive && activeTeamChanged && session.activeTeamId)) {
        SFX.playIntro();
-       // Generate unique audio key based on question + active team (to prevent caching wrong team name)
+       // Generate unique audio key based on question + active team
        const audioKey = `read_${currentQuestion.id}_${session.activeTeamId || 'any'}`;
+       
+       // Construct the speech text explicitly here to ensure Team Name is included
+       const teamIntro = activeTeam ? `Question for ${activeTeam.name}. ` : "";
+       const speechText = API.formatQuestionForSpeech(currentQuestion, activeTeam?.name);
+
        if (audioCacheRef.current[audioKey]) {
           playAudio(audioCacheRef.current[audioKey], undefined, () => {
             if (session.isReading) API.completeReading();
           });
        } else {
-          // Pass the currently selected team name for formatting
-          API.getTTSAudio(API.formatQuestionForSpeech(currentQuestion, activeTeam?.name)).then(audio => {
+          API.getTTSAudio(speechText).then(audio => {
             if (audio) {
               audioCacheRef.current[audioKey] = audio;
               playAudio(audio, undefined, () => API.completeReading());
@@ -183,7 +187,7 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // 4. Reveal Results & Commentary
+    // 4. Reveal Results & Commentary (UPDATED: Split Malayalam and English)
     if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
        sfxPlayedRef.current = true;
        if (currentQuestion.roundType !== 'ASK_AI') {
@@ -197,14 +201,14 @@ const DisplayView: React.FC = () => {
                 const teamName = team ? team.name : "Team";
                 const points = currentQuestion.points;
 
-                // 1. Pick Meme
+                // 1. Pick Meme (Malayalam)
                 const templates = isCorrect ? AI_COMMENTS.CORRECT : AI_COMMENTS.WRONG;
                 const memeTemplate = templates[Math.floor(Math.random() * templates.length)];
                 const memeText = memeTemplate
                     .replace('{team}', teamName)
                     .replace('{points}', points.toString());
 
-                // 2. Construct Technical Feedback
+                // 2. Construct Technical Feedback (English)
                 const selectedChar = String.fromCharCode(65 + (submission.answer || 0));
                 const correctChar = String.fromCharCode(65 + currentQuestion.correctAnswer);
                 let technicalFeedback = "";
@@ -212,16 +216,28 @@ const DisplayView: React.FC = () => {
                 if (isCorrect) {
                      technicalFeedback = `Option ${selectedChar} is indeed the correct answer.`;
                 } else {
-                     technicalFeedback = `You locked Option ${selectedChar}, which is wrong. The correct answer is Option ${correctChar}.`;
+                     technicalFeedback = `You selected Option ${selectedChar}, which is incorrect. The right answer is Option ${correctChar}.`;
                 }
 
-                // 3. Combine for Speech
-                const spokenComment = `${memeText} ${technicalFeedback}`;
-                
-                setTimeout(() => {
-                    API.getTTSAudio(spokenComment).then(audio => {
-                         if (audio) playAudio(audio, spokenComment);
-                    });
+                // Sequence: SFX -> Wait -> Meme (Malayalam) -> Wait -> Verdict (English)
+                setTimeout(async () => {
+                    // Try Malayalam Meme
+                    const memeAudio = await API.getTTSAudio(memeText);
+                    
+                    const playVerdict = async () => {
+                         const verdictAudio = await API.getTTSAudio(technicalFeedback);
+                         if (verdictAudio) playAudio(verdictAudio, technicalFeedback);
+                    };
+
+                    if (memeAudio) {
+                        playAudio(memeAudio, memeText, () => {
+                            setTimeout(playVerdict, 300); // Wait 300ms before verdict
+                        });
+                    } else {
+                        // Fallback if meme fails: just play verdict
+                        playVerdict();
+                    }
+
                 }, 500); 
             } else {
                 SFX.playWrong();
@@ -298,6 +314,7 @@ const DisplayView: React.FC = () => {
   }, [session?.askAiState, session?.currentAskAiQuestion, session?.currentAskAiResponse, session?.askAiVerdict, currentQuestion?.roundType]);
 
   useEffect(() => {
+    // Only run timer if not reading
     if (session?.status === QuizStatus.LIVE && (currentQuestion?.roundType === 'STANDARD' || currentQuestion?.roundType === 'VISUAL') && !session.isReading && session.activeTeamId) {
       const interval = setInterval(() => {
         const startTime = session.turnStartTime || Date.now();
@@ -397,7 +414,7 @@ const DisplayView: React.FC = () => {
                    </div>
                 ) : (
                     currentQuestion.roundType === 'ASK_AI' ? (
-                        // ... ASK AI Content (Same as previous) ...
+                        // ... ASK AI Content ...
                         <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
                              {session.askAiState === 'IDLE' || session.askAiState === 'LISTENING' ? (
                                  <div className="glass-card p-16 rounded-[4rem] border-l-[12px] border-purple-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center">
