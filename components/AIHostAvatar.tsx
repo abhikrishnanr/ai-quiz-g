@@ -19,25 +19,6 @@ const WhiteGlowMaterial = new THREE.MeshStandardMaterial({
   metalness: 0,
 });
 
-const TechRingMaterial = new THREE.MeshStandardMaterial({
-  color: new THREE.Color('#3b82f6'), // Blue
-  emissive: new THREE.Color('#2563eb'),
-  emissiveIntensity: 2,
-  roughness: 0.1,
-  metalness: 0.9,
-  transparent: true,
-  opacity: 0.5,
-  side: THREE.DoubleSide,
-  blending: THREE.AdditiveBlending,
-});
-
-const DotMaterial = new THREE.MeshBasicMaterial({
-  color: new THREE.Color('#60a5fa'),
-  transparent: true,
-  opacity: 0.8,
-  blending: THREE.AdditiveBlending
-});
-
 // -- Components --
 
 const WhiteCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
@@ -64,7 +45,7 @@ const WhiteCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
     meshRef.current.scale.setScalar(scale);
     
     // Outer Glow Shell
-    glowRef.current.scale.setScalar(scale * 1.6); // Tighter glow for smaller core
+    glowRef.current.scale.setScalar(scale * 1.6); 
     glowRef.current.rotation.z -= 0.02;
     glowRef.current.rotation.x += 0.02;
   });
@@ -73,7 +54,7 @@ const WhiteCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
     <group>
       {/* Smaller, intense core */}
       <mesh ref={meshRef} material={WhiteGlowMaterial}>
-        <icosahedronGeometry args={[0.35, 8]} /> {/* Significantly smaller core */}
+        <icosahedronGeometry args={[0.35, 8]} />
       </mesh>
       
       {/* Outer transparent glow shell */}
@@ -180,7 +161,7 @@ const DashRing: React.FC<{ radius: number; count: number; width: number; height:
 };
 
 // A ring of dots rotating
-const DotRing: React.FC<{ radius: number; count: number; speed: number; size: number }> = ({ radius, count, speed, size }) => {
+const DotRing: React.FC<{ radius: number; count: number; speed: number; size: number; color?: string }> = ({ radius, count, speed, size, color }) => {
     const groupRef = useRef<THREE.Group>(null);
 
     useFrame((_, delta) => {
@@ -196,24 +177,33 @@ const DotRing: React.FC<{ radius: number; count: number; speed: number; size: nu
             d.push(
                 <mesh key={i} position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]}>
                     <circleGeometry args={[size, 8]} />
-                    <primitive object={DotMaterial} />
+                    <meshBasicMaterial color={color || '#60a5fa'} transparent opacity={0.8} blending={THREE.AdditiveBlending} />
                 </mesh>
             );
         }
         return d;
-    }, [count, radius, size]);
+    }, [count, radius, size, color]);
 
     return <group ref={groupRef}>{dots}</group>;
 };
 
 // Complex Outer Ring Structure
-const ComplexOuterRig: React.FC = () => {
+const ComplexOuterRig: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
     const rigRef = useRef<THREE.Group>(null);
     
+    // Color Palette Switching
+    // Active: Blue/Cyan/White
+    // Inactive: Gray/Slate
+    const cPrimary = isSpeaking ? '#3b82f6' : '#475569';
+    const cSecondary = isSpeaking ? '#93c5fd' : '#64748b';
+    const cAccent = isSpeaking ? '#2563eb' : '#334155';
+    const cDot = isSpeaking ? '#60a5fa' : '#475569';
+    const cWhite = isSpeaking ? '#ffffff' : '#94a3b8';
+
     useFrame((state) => {
         if (rigRef.current) {
-            // Complex multi-axis rotation for the whole system
-            const t = state.clock.elapsedTime * 0.1;
+            // SLOWED DOWN: Reduced rotation speed
+            const t = state.clock.elapsedTime * 0.02; // Was 0.1
             rigRef.current.rotation.x = Math.sin(t * 0.5) * 0.1;
             rigRef.current.rotation.y = Math.cos(t * 0.3) * 0.15;
         }
@@ -224,37 +214,37 @@ const ComplexOuterRig: React.FC = () => {
             {/* 1. Main HUD Ring */}
             <mesh>
                 <torusGeometry args={[2.5, 0.02, 16, 100]} />
-                <meshBasicMaterial color="#3b82f6" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
+                <meshBasicMaterial color={cPrimary} transparent opacity={0.3} blending={THREE.AdditiveBlending} />
             </mesh>
 
-            {/* 2. Inner Pattern Ring (Dashes) - Clockwise */}
-            <DashRing radius={1.8} count={32} width={0.05} height={0.3} speed={0.3} color="#93c5fd" opacity={0.6} />
+            {/* 2. Inner Pattern Ring (Dashes) - Clockwise - SLOWER */}
+            <DashRing radius={1.8} count={32} width={0.05} height={0.3} speed={0.05} color={cSecondary} opacity={0.6} />
 
-            {/* 3. Outer Pattern Ring (Fine Dashes) - Counter-Clockwise */}
-            <DashRing radius={2.8} count={80} width={0.02} height={0.15} speed={-0.15} color="#2563eb" opacity={0.4} />
+            {/* 3. Outer Pattern Ring (Fine Dashes) - Counter-Clockwise - SLOWER */}
+            <DashRing radius={2.8} count={80} width={0.02} height={0.15} speed={-0.02} color={cAccent} opacity={0.4} />
 
-            {/* 4. Dots Orbiting - Anti-clockwise */}
-            <DotRing radius={2.2} count={16} speed={-0.4} size={0.06} />
+            {/* 4. Dots Orbiting - Anti-clockwise - SLOWER */}
+            <DotRing radius={2.2} count={16} speed={-0.08} size={0.06} color={cDot} />
 
-            {/* 5. Second Dot Ring - Fast */}
-            <DotRing radius={1.2} count={8} speed={0.8} size={0.04} />
+            {/* 5. Second Dot Ring - Fast (but slower than before) */}
+            <DotRing radius={1.2} count={8} speed={0.15} size={0.04} color={cDot} />
 
-            {/* 6. Angled Orbital Ring 1 */}
+            {/* 6. Angled Orbital Ring 1 - SLOWER */}
             <group rotation={[0.4, 0.4, 0]}>
                  <mesh>
                     <torusGeometry args={[3.2, 0.01, 16, 100]} />
-                    <meshBasicMaterial color="#60a5fa" transparent opacity={0.2} blending={THREE.AdditiveBlending} />
+                    <meshBasicMaterial color={cDot} transparent opacity={0.2} blending={THREE.AdditiveBlending} />
                  </mesh>
-                 <DotRing radius={3.2} count={4} speed={0.5} size={0.1} />
+                 <DotRing radius={3.2} count={4} speed={0.05} size={0.1} color={cDot} />
             </group>
 
-             {/* 7. Angled Orbital Ring 2 */}
+             {/* 7. Angled Orbital Ring 2 - SLOWER */}
              <group rotation={[-0.4, -0.4, 0]}>
                  <mesh>
                     <torusGeometry args={[3.0, 0.01, 16, 100]} />
-                    <meshBasicMaterial color="#a5b4fc" transparent opacity={0.2} blending={THREE.AdditiveBlending} />
+                    <meshBasicMaterial color={cSecondary} transparent opacity={0.2} blending={THREE.AdditiveBlending} />
                  </mesh>
-                 <DashRing radius={3.0} count={12} width={0.05} height={0.4} speed={-0.2} color="#ffffff" opacity={0.1} />
+                 <DashRing radius={3.0} count={12} width={0.05} height={0.4} speed={-0.03} color={cWhite} opacity={0.1} />
             </group>
         </group>
     );
@@ -316,7 +306,7 @@ const Scene: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
         <AmplitudeSpikes isSpeaking={isSpeaking} />
 
         {/* The Structural UI Layer */}
-        <ComplexOuterRig />
+        <ComplexOuterRig isSpeaking={isSpeaking} />
 
       </Float>
 
@@ -337,7 +327,7 @@ export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking = false, 
   return (
     <div className={`${sizeMap[size]} relative mx-auto`} style={{ minHeight: '300px' }}>
       {/* Background glow for integration */}
-      <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-[80px] animate-pulse pointer-events-none" />
+      <div className={`absolute inset-0 rounded-full blur-[80px] pointer-events-none transition-colors duration-1000 ${isSpeaking ? 'bg-blue-500/10 animate-pulse' : 'bg-slate-500/5'}`} />
       
       <Suspense fallback={
           <div className="w-full h-full flex items-center justify-center">
