@@ -44,11 +44,14 @@ const processQueue = async () => {
   isProcessingQueue = true;
   const { text, resolve } = requestQueue.shift()!;
   
+  // Safety: Truncate extremely long text to avoid 500 errors and ensure speed
+  // 400 chars is roughly 60-80 words, plenty for a snappy response.
+  const safeText = text.length > 400 ? text.substring(0, 397) + "..." : text;
+
   try {
-    // Simplified prompt for cleaner, faster speech generation
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: text }] }],
+      contents: [{ parts: [{ text: safeText }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -62,6 +65,7 @@ const processQueue = async () => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     
     if (base64Audio) {
+      // Cache using the original text key so we don't re-process
       const cacheKey = text.trim().toLowerCase();
       saveToPersistentCache(cacheKey, base64Audio);
       resolve(base64Audio);
@@ -90,6 +94,7 @@ export const API = {
   requestHint: async (teamId: string): Promise<QuizSession> => QuizService.requestHint(teamId),
   toggleHint: async (visible: boolean): Promise<QuizSession> => QuizService.toggleHintVisibility(visible),
   submitTeamAnswer: async (teamId: string, qId: string, ans?: number, type: SubmissionType = 'ANSWER'): Promise<Submission> => QuizService.submitAnswer(teamId, qId, ans, type),
+  setActiveTeam: async (teamId: string): Promise<QuizSession> => QuizService.setActiveTeam(teamId),
 
   setRoundMode: async (type: RoundType): Promise<QuizSession> => {
     await QuizService.setNextRoundType(type);
@@ -121,7 +126,7 @@ export const API = {
         try {
             const imgPromptResponse = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
-                contents: "Describe a futuristic piece of technology or a complex AI concept (like a neural processor or a quantum circuit) that would make a great visual quiz question. Provide the name of the concept and a multiple choice set.",
+                contents: "Describe a futuristic piece of technology or a complex AI concept (like a neural processor or a quantum circuit). Provide the name, a multiple choice set, and a very short explanation (max 20 words).",
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: {
@@ -172,7 +177,7 @@ export const API = {
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-pro-preview',
-        contents: `Generate a multiple-choice quiz question about Artificial Intelligence. Round type: ${nextRound}.`,
+        contents: `Generate a multiple-choice quiz question about Artificial Intelligence. Round type: ${nextRound}. Ensure the explanation is very concise (max 30 words) and conversational.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -252,7 +257,7 @@ export const API = {
     try {
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `User Question: "${userQuestion}"\nSystem: You are an AI Quiz Host. Answer simply and accurately.`,
+            contents: `User Question: "${userQuestion}"\nSystem: You are an AI Quiz Host. Answer the question accurately but keep it extremely concise (max 25 words). One short sentence is best. Do not use complex formatting.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }

@@ -206,11 +206,36 @@ const AdminView: React.FC = () => {
                      
                      <div className="p-12 space-y-8">
                         <div className="flex justify-between items-center">
-                            <h2 className="text-3xl font-black text-white uppercase">Ask AI</h2>
+                            <div>
+                                <h2 className="text-3xl font-black text-white uppercase">Ask AI</h2>
+                                <p className="text-slate-500 text-xs mt-2 uppercase tracking-widest">Select Team Before Going Live</p>
+                            </div>
                             {session.activeTeamId && (
                                 <Badge color="amber">Playing: {session.teams.find(t => t.id === session.activeTeamId)?.name}</Badge>
                             )}
                         </div>
+
+                        {/* TEAM SELECTION BUTTONS */}
+                        {session.status !== QuizStatus.LIVE && (
+                            <div className="bg-white/5 p-6 rounded-[2rem] border border-white/5">
+                                <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest mb-4">Select Challenger Team</h3>
+                                <div className="flex flex-wrap gap-4">
+                                    {session.teams.map((team) => (
+                                        <button
+                                            key={team.id}
+                                            onClick={() => performAction(() => API.setActiveTeam(team.id))}
+                                            className={`px-6 py-4 rounded-xl font-black uppercase tracking-wider text-sm transition-all border-2 ${
+                                                session.activeTeamId === team.id
+                                                    ? 'bg-purple-600 border-purple-500 text-white shadow-lg scale-105'
+                                                    : 'bg-slate-900 border-slate-700 text-slate-400 hover:border-purple-500/50 hover:text-white'
+                                            }`}
+                                        >
+                                            {team.name}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="grid grid-cols-2 gap-6">
                             <button

@@ -16,6 +16,8 @@ export const HOST_SCRIPTS = {
   INTRO: "Digital University AI Quiz Platform online. Welcome teams to this six round event. Four rounds will be standard rounds, one buzzer round, and one Ask the AI round. Let's do this. Let's start the quiz!",
   WARNING_10S: "Just 10 seconds remaining, darlings.",
   TIME_UP: "Time is up. Let's move forward.",
+  // New specific script for Ask AI
+  ASK_AI_INTRO: "{team}, please click the microphone button to ask your question. If there are any errors in transcription, use the text editor to correct them before sending. I am waiting."
 };
 
 export const AI_COMMENTS = {

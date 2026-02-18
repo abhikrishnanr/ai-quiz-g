@@ -133,6 +133,13 @@ export const QuizService = {
     return session;
   },
 
+  setActiveTeam: async (teamId: string): Promise<QuizSession> => {
+      let session = loadSession();
+      session.activeTeamId = teamId;
+      saveSession(session);
+      return session;
+  },
+
   submitAnswer: async (teamId: string, questionId: string, answer?: number, type: 'ANSWER' | 'PASS' = 'ANSWER'): Promise<Submission> => {
     let session = loadSession();
     const question = session.currentQuestion;

@@ -44,6 +44,10 @@ const DisplayView: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   
+  // Local state to hide AI answer until voice is ready
+  const [aiAnswerRevealed, setAiAnswerRevealed] = useState(false);
+  const [askAiAnnounced, setAskAiAnnounced] = useState(false);
+  
   const lastQuestionIdRef = useRef<string | null>(null);
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
@@ -72,7 +76,6 @@ const DisplayView: React.FC = () => {
     
     if (!introPlayedRef.current) {
         introPlayedRef.current = true;
-        // Updated Intro Text
         const introText = HOST_SCRIPTS.INTRO;
         setTimeout(() => {
             API.getTTSAudio(introText).then(audio => {
@@ -114,8 +117,8 @@ const DisplayView: React.FC = () => {
   useEffect(() => {
     if (!session || !currentQuestion) return;
 
-    // 1. Reading Question State
-    if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE) {
+    // 1. Reading Question State (Standard/Buzzer)
+    if (session.status === QuizStatus.LIVE && lastStatusRef.current !== QuizStatus.LIVE && currentQuestion.roundType !== 'ASK_AI') {
        SFX.playIntro();
        const audioKey = `read_${currentQuestion.id}`;
        if (audioCacheRef.current[audioKey]) {
@@ -130,6 +133,24 @@ const DisplayView: React.FC = () => {
             } else API.completeReading();
           });
        }
+    }
+
+    // Special Ask AI Intro when going LIVE
+    if (session.status === QuizStatus.LIVE && currentQuestion.roundType === 'ASK_AI' && !askAiAnnounced && audioInitialized) {
+        setAskAiAnnounced(true);
+        const teamName = activeTeam ? activeTeam.name : "Team";
+        const text = HOST_SCRIPTS.ASK_AI_INTRO.replace('{team}', teamName);
+        
+        API.getTTSAudio(text).then(audio => {
+            if (audio) {
+                playAudio(audio, `Waiting for ${teamName}...`, () => {
+                    // Start ambient sound after instructions finish
+                    SFX.startAmbient();
+                });
+            } else {
+                SFX.startAmbient();
+            }
+        });
     }
 
     // 2. Announce Team Passing
@@ -171,23 +192,19 @@ const DisplayView: React.FC = () => {
                 const teamName = team ? team.name : "Team";
                 const points = currentQuestion.points;
 
-                // Pick a random witty comment
                 const templates = isCorrect ? AI_COMMENTS.CORRECT : AI_COMMENTS.WRONG;
                 const randomTemplate = templates[Math.floor(Math.random() * templates.length)];
                 
-                // Construct the commentary
                 const spokenComment = randomTemplate
                     .replace('{team}', teamName)
                     .replace('{points}', points.toString());
                 
-                // Queue the audio: Comment first, then explanation if needed
                 setTimeout(() => {
                     API.getTTSAudio(spokenComment).then(audio => {
                          if (audio) playAudio(audio, spokenComment);
                     });
-                }, 800); // Slight delay after SFX
+                }, 800);
             } else {
-                // Time Up case
                 SFX.playWrong();
                 API.getTTSAudio(HOST_SCRIPTS.TIME_UP).then(audio => {
                     if (audio) playAudio(audio, "Time Up");
@@ -196,10 +213,9 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // 5. Read Explanation (After commentary finishes, usually manually triggered or sequenced, but here simpler)
+    // 5. Read Explanation
     if (session.explanationVisible && !explanationPlayedRef.current) {
        explanationPlayedRef.current = true;
-       // We add a slight delay to ensure it doesn't overlap perfectly with the commentary if clicked fast
        setTimeout(() => {
            API.getTTSAudio(API.formatExplanationForSpeech(currentQuestion.explanation)).then(audio => {
              if (audio) playAudio(audio, "Explanation");
@@ -214,6 +230,9 @@ const DisplayView: React.FC = () => {
         lastSubmissionCountRef.current = 0;
         lastPassedCountRef.current = 0; 
         lastAskAiStateRef.current = 'IDLE';
+        setAiAnswerRevealed(false);
+        setAskAiAnnounced(false);
+        SFX.stopAmbient(); // Stop any lingering ambient sound
     }
     
     lastStatusRef.current = session.status;
@@ -225,18 +244,25 @@ const DisplayView: React.FC = () => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI') return;
 
     if (session.askAiState !== lastAskAiStateRef.current) {
-        if (session.askAiState === 'PROCESSING' && session.currentAskAiQuestion) {
-             const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'Team';
-             const textToRead = `I am thinking about the question from ${teamName}: ${session.currentAskAiQuestion}`;
+        if (session.askAiState === 'PROCESSING') {
+             SFX.stopAmbient(); // Stop waiting music
+             setAiAnswerRevealed(false);
+             const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'the team';
+             // Engaging filler speech
+             const textToRead = `I am thinking about the answer for ${teamName}. Please wait a moment.`;
              API.getTTSAudio(textToRead).then(audio => {
-                 if (audio) playAudio(audio, `Thinking: "${session.currentAskAiQuestion}"`);
+                 if (audio) playAudio(audio, "Thinking...");
              });
         }
+        
+        // When AI has the answer, fetch TTS first, THEN reveal text
         if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) {
              API.getTTSAudio(session.currentAskAiResponse).then(audio => {
+                 setAiAnswerRevealed(true); // Trigger display
                  if (audio) playAudio(audio, session.currentAskAiResponse);
              });
         }
+
         if (session.askAiState === 'COMPLETED' && session.askAiVerdict) {
              const isWrong = session.askAiVerdict === 'AI_WRONG';
              const teamName = session.teams.find(t => t.id === session.activeTeamId)?.name || 'the team';
@@ -261,9 +287,6 @@ const DisplayView: React.FC = () => {
         const remaining = Math.max(0, limit - elapsed);
         setTurnTimeLeft(remaining);
         if (remaining <= 5 && remaining > 0) SFX.playTimerTick();
-        if (remaining === 0 && session.status === QuizStatus.LIVE) {
-            // Optional: Trigger auto-lock or voice warning here if needed
-        }
       }, 200);
       return () => clearInterval(interval);
     }
@@ -363,7 +386,8 @@ const DisplayView: React.FC = () => {
                                          <h2 className="text-2xl font-black text-white leading-tight italic">"{session.currentAskAiQuestion}"</h2>
                                      </div>
                                      
-                                     {session.askAiState === 'PROCESSING' && (
+                                     {/* Show Processing UI if in PROCESSING state OR if in ANSWERING state but audio not yet ready */}
+                                     {(session.askAiState === 'PROCESSING' || (session.askAiState === 'ANSWERING' && !aiAnswerRevealed)) && (
                                          <div className="flex-grow glass-card p-12 rounded-[4rem] border border-indigo-500/30 bg-indigo-500/5 flex items-center justify-center relative overflow-hidden">
                                              <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10" />
                                              <div className="text-center space-y-8 relative z-10">
@@ -373,12 +397,13 @@ const DisplayView: React.FC = () => {
                                                      <div className="w-4 h-4 rounded-full bg-indigo-400 animate-bounce" style={{animationDelay:'0.2s'}} />
                                                  </div>
                                                  <Search className="w-16 h-16 text-indigo-400 animate-pulse mx-auto" />
-                                                 <h3 className="text-3xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Thinking...</h3>
+                                                 <h3 className="text-3xl font-black text-white uppercase tracking-[0.2em] animate-pulse">Formulating Answer...</h3>
                                              </div>
                                          </div>
                                      )}
                                      
-                                     {session.askAiState === 'ANSWERING' && (
+                                     {/* Show Answer only when audio is ready */}
+                                     {session.askAiState === 'ANSWERING' && aiAnswerRevealed && (
                                          <div className="flex-grow glass-card p-10 rounded-[3rem] border border-purple-500/30 bg-purple-500/5 flex flex-col items-center justify-start animate-in slide-in-from-bottom shadow-2xl overflow-hidden">
                                              <div className="text-center space-y-6 w-full h-full flex flex-col">
                                                  <Badge color="blue">AI Answer</Badge>

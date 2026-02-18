@@ -3,6 +3,8 @@
 // No external assets required
 
 let audioCtx: AudioContext | null = null;
+let ambientOsc: OscillatorNode | null = null;
+let ambientGain: GainNode | null = null;
 
 const getCtx = () => {
   if (!audioCtx) {
@@ -98,5 +100,42 @@ export const SFX = {
     gain.connect(ctx.destination);
     osc.start(now);
     osc.stop(now + 0.05);
+  },
+
+  startAmbient: () => {
+    const ctx = getCtx();
+    if (ambientOsc) return; // Already playing
+
+    ambientOsc = ctx.createOscillator();
+    ambientGain = ctx.createGain();
+    
+    // Low, throbbing drone
+    ambientOsc.type = 'sine';
+    ambientOsc.frequency.setValueAtTime(60, ctx.currentTime);
+    
+    // Slight modulation (LFO effect manually via linear ramp not ideal but simple)
+    // For a simple drone, just a constant low hum
+    ambientGain.gain.setValueAtTime(0.0, ctx.currentTime);
+    ambientGain.gain.linearRampToValueAtTime(0.05, ctx.currentTime + 2); // Fade in
+    
+    ambientOsc.connect(ambientGain);
+    ambientGain.connect(ctx.destination);
+    ambientOsc.start();
+  },
+
+  stopAmbient: () => {
+    if (ambientGain && ambientOsc) {
+        const ctx = getCtx();
+        ambientGain.gain.cancelScheduledValues(ctx.currentTime);
+        ambientGain.gain.setValueAtTime(ambientGain.gain.value, ctx.currentTime);
+        ambientGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 1); // Fade out
+        
+        const oldOsc = ambientOsc;
+        setTimeout(() => {
+            try { oldOsc.stop(); } catch(e) {}
+        }, 1100);
+    }
+    ambientOsc = null;
+    ambientGain = null;
   }
 };
