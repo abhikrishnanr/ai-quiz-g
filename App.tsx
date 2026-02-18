@@ -1,9 +1,10 @@
+
 import React from 'react';
 import { HashRouter as Router, Routes, Route, Link, Navigate } from 'react-router-dom';
 import AdminView from './views/AdminView';
 import DisplayView from './views/DisplayView';
 import TeamView from './views/TeamView';
-import { BrainCircuit, Settings, Monitor, Users, ChevronRight, Zap } from 'lucide-react';
+import { BrainCircuit, Settings, Monitor, Users, ChevronRight, Zap, QrCode } from 'lucide-react';
 
 const Home: React.FC = () => (
   <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 relative overflow-hidden selection:bg-indigo-500 selection:text-white">
@@ -16,7 +17,7 @@ const Home: React.FC = () => (
       <div className="absolute inset-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
     </div>
 
-    <div className="relative z-20 flex flex-col items-center max-w-5xl w-full">
+    <div className="relative z-20 flex flex-col items-center max-w-6xl w-full">
       <div className="bg-white/5 backdrop-blur-xl p-8 rounded-[3rem] shadow-[0_0_50px_rgba(79,70,229,0.2)] mb-12 border border-white/10 ring-1 ring-white/20 animate-in zoom-in duration-700">
         <BrainCircuit className="w-20 h-20 text-indigo-400 drop-shadow-[0_0_15px_rgba(129,140,248,0.5)]" />
       </div>
@@ -25,7 +26,7 @@ const Home: React.FC = () => (
         DIGITAL UNIVERSITY <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400">AI QUIZ</span>
       </h1>
       <p className="text-xl text-slate-400 mb-16 max-w-lg text-center font-medium leading-relaxed">
-        Next-generation competitive intelligence platform driven by real-time neural processing.
+        Next-generation competitive intelligence platform driven by real-time neural processing and Gemini vision.
       </p>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full px-4 md:px-0">
@@ -55,6 +56,18 @@ const Home: React.FC = () => (
         ))}
       </div>
       
+      {/* Dynamic QR Join Section */}
+      <div className="mt-20 flex flex-col items-center gap-6 animate-in slide-in-from-bottom duration-1000 delay-500">
+         <div className="bg-white/5 p-4 rounded-3xl border border-white/10 relative group">
+            <QrCode className="w-24 h-24 text-indigo-400 group-hover:text-white transition-colors" />
+            <div className="absolute inset-0 bg-indigo-500/10 blur-xl rounded-full -z-10 animate-pulse" />
+         </div>
+         <div className="text-center">
+            <p className="text-[10px] font-black uppercase text-indigo-500 tracking-[0.4em]">Instant Link</p>
+            <p className="text-slate-500 text-xs font-mono mt-1">DUK-AI-QUIZ.LIVE/NODE-JOIN</p>
+         </div>
+      </div>
+
       <footer className="mt-24 flex flex-wrap justify-center gap-8 text-[10px] font-black tracking-[0.3em] text-slate-600 uppercase">
         <span className="flex items-center gap-2"><Zap className="w-3 h-3" /> Neural Architecture</span>
         <span className="w-1 h-1 bg-slate-700 rounded-full my-auto hidden md:block"></span>

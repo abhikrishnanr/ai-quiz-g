@@ -92,21 +92,72 @@ export const API = {
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
 
-    // IF Next round is ASK_AI, we don't generate a question text, we just initialize the round structure
     if (nextRound === 'ASK_AI') {
         const dummyQuestion: Question = {
             id: `ask_ai_${Date.now()}`,
-            text: "Ask the AI Round",
+            text: "Oracle Round: Challenge the Core with live search capability.",
             options: [],
             correctAnswer: -1,
             explanation: "",
-            points: 200, // Bonus points if AI fails
+            points: 200,
             timeLimit: 60,
             roundType: 'ASK_AI',
             difficulty: 'HARD',
             hint: ''
         };
         return QuizService.injectDynamicQuestion(dummyQuestion);
+    }
+
+    if (nextRound === 'VISUAL') {
+        try {
+            const imgPromptResponse = await ai.models.generateContent({
+                model: 'gemini-3-pro-preview',
+                contents: "Describe a futuristic piece of technology or a complex AI concept (like a neural processor or a quantum circuit) that would make a great visual quiz question. Provide the name of the concept and a multiple choice set.",
+                config: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: Type.OBJECT,
+                        properties: {
+                            concept: { type: Type.STRING },
+                            imagePrompt: { type: Type.STRING },
+                            options: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            correctIndex: { type: Type.INTEGER },
+                            explanation: { type: Type.STRING }
+                        },
+                        required: ['concept', 'imagePrompt', 'options', 'correctIndex', 'explanation']
+                    }
+                }
+            });
+            const data = JSON.parse(imgPromptResponse.text);
+            
+            const imageGen = await ai.models.generateContent({
+                model: 'gemini-2.5-flash-image',
+                contents: [{ text: `A photorealistic, cinematic close-up of ${data.imagePrompt}. High tech, blueprint style, neon accents, dark background.` }],
+                config: { imageConfig: { aspectRatio: "16:9" } }
+            });
+            
+            let visualUri = "";
+            for (const part of imageGen.candidates[0].content.parts) {
+                if (part.inlineData) visualUri = `data:image/png;base64,${part.inlineData.data}`;
+            }
+
+            const question: Question = {
+                id: `visual_${Date.now()}`,
+                text: `Identify this neural infrastructure component:`,
+                options: data.options,
+                correctAnswer: data.correctIndex,
+                explanation: data.explanation,
+                points: 250,
+                timeLimit: 45,
+                roundType: 'VISUAL',
+                difficulty: 'HARD',
+                hint: 'Look closely at the energy flow patterns.',
+                visualUri
+            };
+            return QuizService.injectDynamicQuestion(question);
+        } catch (e) {
+            console.error("Visual Round Gen Failed", e);
+        }
     }
 
     try {
@@ -171,21 +222,15 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    if (question.roundType === 'ASK_AI') {
-        return `Ask the AI Round initiated. ${activeTeamName ? activeTeamName + ', please activate your microphone.' : 'Prepare your queries.'}`;
-    }
+    if (question.roundType === 'ASK_AI') return `Oracle Round initiated. Challenge my core knowledge.`;
+    if (question.roundType === 'VISUAL') return `Visual identification round. Scan the projection and identify the architecture.`;
     const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
     return `${question.text} Options are: ${opts}`;
   },
 
-  formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => {
-    return `${explanation}`;
-  },
+  formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => explanation,
 
-  // Ask AI Specifics
-  setAskAiState: async (state: AskAiState): Promise<QuizSession> => {
-      return QuizService.setAskAiState(state);
-  },
+  setAskAiState: async (state: AskAiState): Promise<QuizSession> => QuizService.setAskAiState(state),
 
   submitAskAiQuestion: async (questionText: string): Promise<QuizSession> => {
       await QuizService.setAskAiState('PROCESSING', { question: questionText });
@@ -198,30 +243,29 @@ export const API = {
     try {
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `
-                User Question: "${userQuestion}"
-                
-                System Instruction:
-                You are a participant in a quiz show.
-                ALLOWED DOMAINS: AI & ML, Blockchain, Data Science, Cyber Security, Robotics + IoT, Digital India, Tech Innovations.
-                
-                Rules:
-                1. If the User Question is NOT within the ALLOWED DOMAINS, respond EXACTLY with:
-                   "Sorry, that question is out of the allowed domain for this round. Please ask within AI/ML, Blockchain, Data Science, Cyber Security, Robotics + IoT, Digital India, or Tech Innovations."
-                2. If the question IS within domain, answer it concisely (max 2 sentences).
-                3. Do not be conversational, just give the answer.
-            `,
+            contents: `User Question: "${userQuestion}"\nSystem: You are Bodhini Core, a quiz architect. Answer concisely using provided tools if needed.`,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
         });
 
-        const aiText = response.text || "Unable to generate response.";
-        return QuizService.setAskAiState('ANSWERING', { response: aiText });
+        const aiText = response.text || "I was unable to retrieve a valid response.";
+        const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        
+        // Extract links for citations
+        const links = grounding
+            .filter((chunk: any) => chunk.web)
+            .map((chunk: any) => ({ title: chunk.web.title, uri: chunk.web.uri }));
+
+        let session = await QuizService.setAskAiState('ANSWERING', { response: aiText });
+        // Manually update session with links via service
+        session.groundingUrls = links;
+        localStorage.setItem('DUK_QUIZ_SESSION_V2', JSON.stringify(session));
+        return session;
     } catch (e) {
-        console.error("Ask AI Gen Failed", e);
-        return QuizService.setAskAiState('ANSWERING', { response: "I am experiencing network interference. Please try again." });
+        return QuizService.setAskAiState('ANSWERING', { response: "My neural link is currently unstable. Please re-submit your query." });
     }
   },
 
-  judgeAskAi: async (verdict: 'AI_CORRECT' | 'AI_WRONG'): Promise<QuizSession> => {
-      return QuizService.judgeAskAi(verdict);
-  }
+  judgeAskAi: async (verdict: 'AI_CORRECT' | 'AI_WRONG'): Promise<QuizSession> => QuizService.judgeAskAi(verdict)
 };

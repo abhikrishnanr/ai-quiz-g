@@ -7,7 +7,7 @@ import { Card, Button, Badge } from '../components/SharedUI';
 import { 
   CheckCircle2, AlertCircle, Clock, Zap, LogOut, 
   Sparkles, MessageSquare, BrainCircuit, Waves, 
-  Lock as LockIcon, Activity, HandMetal, Mic, Send
+  Lock as LockIcon, Activity, HandMetal, Mic, Send, Eye
 } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 
@@ -17,7 +17,6 @@ const TeamView: React.FC = () => {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Ask AI State
   const [askAiText, setAskAiText] = useState("");
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
@@ -34,7 +33,6 @@ const TeamView: React.FC = () => {
     }
   }, [session?.currentQuestion?.id, session?.status]);
 
-  // STT Init
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new (window as any).webkitSpeechRecognition();
@@ -138,7 +136,6 @@ const TeamView: React.FC = () => {
       );
     }
 
-    // --- ASK AI ROUND LOGIC ---
     if (currentQuestion.roundType === 'ASK_AI') {
         if (!isMyTurn) {
              return (
@@ -169,7 +166,6 @@ const TeamView: React.FC = () => {
                         <Badge color="blue">Input Active</Badge>
                         <h2 className="text-4xl font-black text-white uppercase">Ask Your Question</h2>
                      </div>
-                     
                      <div className="w-full relative">
                         <textarea
                             value={askAiText}
@@ -177,28 +173,17 @@ const TeamView: React.FC = () => {
                             placeholder="Type your question or use microphone..."
                             className="w-full bg-slate-900/50 border border-white/10 rounded-[2rem] p-8 h-48 text-xl text-white resize-none focus:outline-none focus:border-indigo-500 transition-colors"
                         />
-                        <button 
-                            onClick={toggleListening}
-                            className={`absolute bottom-6 right-6 p-4 rounded-full transition-all ${isListening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}
-                        >
+                        <button onClick={toggleListening} className={`absolute bottom-6 right-6 p-4 rounded-full transition-all ${isListening ? 'bg-rose-500 animate-pulse' : 'bg-white/10 hover:bg-white/20'}`}>
                             <Mic className="w-6 h-6 text-white" />
                         </button>
                      </div>
-
-                     <Button 
-                        variant="primary" 
-                        className="w-full h-20 text-xl" 
-                        onClick={submitAskAi}
-                        disabled={!askAiText.trim() || isSubmitting}
-                     >
-                        <Send className="w-6 h-6 mr-3" />
-                        SUBMIT TO CORE
+                     <Button variant="primary" className="w-full h-20 text-xl" onClick={submitAskAi} disabled={!askAiText.trim() || isSubmitting}>
+                        <Send className="w-6 h-6 mr-3" /> SUBMIT TO CORE
                      </Button>
                 </div>
             );
         }
 
-        // Processing / Judging
         return (
              <div className="flex flex-col items-center justify-center h-[50vh] text-center space-y-8 animate-in zoom-in">
                  <div className="relative w-32 h-32">
@@ -206,10 +191,7 @@ const TeamView: React.FC = () => {
                      <div className="absolute inset-0 border-t-4 border-indigo-500 rounded-full animate-spin" />
                      <BrainCircuit className="absolute inset-0 m-auto w-12 h-12 text-indigo-400" />
                  </div>
-                 <div>
-                    <h3 className="text-2xl font-black text-white uppercase">Processing Query</h3>
-                    <p className="text-slate-500 mt-2 uppercase tracking-widest text-xs">AI is formulating response...</p>
-                 </div>
+                 <h3 className="text-2xl font-black text-white uppercase">Processing Query</h3>
                  <div className="bg-white/5 p-6 rounded-2xl max-w-xl">
                     <p className="text-slate-300 italic">"{session.currentAskAiQuestion}"</p>
                  </div>
@@ -217,9 +199,9 @@ const TeamView: React.FC = () => {
         );
     }
 
-    // --- STANDARD / BUZZER ROUND LOGIC (Existing) ---
     if (session.status === QuizStatus.LIVE || session.status === QuizStatus.LOCKED) {
       const isBuzzer = currentQuestion.roundType === 'BUZZER';
+      const isVisual = currentQuestion.roundType === 'VISUAL';
       const canPlay = isBuzzer || isMyTurn;
       const isLocked = session.status === QuizStatus.LOCKED;
 
@@ -227,51 +209,40 @@ const TeamView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in slide-in-from-bottom-8">
            <div className="lg:col-span-4 space-y-8">
               <div className={`p-10 rounded-[3rem] border-2 flex flex-col gap-6 shadow-2xl ${
-                isBuzzer ? 'bg-amber-600/10 border-amber-600' : 'bg-indigo-600/10 border-indigo-600'
+                isBuzzer ? 'bg-amber-600/10 border-amber-600' : isVisual ? 'bg-cyan-600/10 border-cyan-600' : 'bg-indigo-600/10 border-indigo-600'
               }`}>
                   <span className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">Node Status</span>
                   <div className="flex items-center justify-between">
                     <span className="font-black text-white uppercase tracking-tighter text-4xl">
-                        {isBuzzer ? 'Buzzer' : isMyTurn ? 'Your Turn' : 'Link Stable'}
+                        {isBuzzer ? 'Buzzer' : isVisual ? 'Visual' : isMyTurn ? 'Your Turn' : 'Link Active'}
                     </span>
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isBuzzer ? 'bg-amber-500' : 'bg-indigo-600'}`}>
-                      {isBuzzer ? <Zap className="w-7 h-7 text-white" /> : <Waves className="w-7 h-7 text-white" />}
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${isBuzzer ? 'bg-amber-500' : isVisual ? 'bg-cyan-600' : 'bg-indigo-600'}`}>
+                      {isBuzzer ? <Zap className="w-7 h-7 text-white" /> : isVisual ? <Eye className="w-7 h-7 text-white" /> : <Waves className="w-7 h-7 text-white" />}
                     </div>
                   </div>
               </div>
 
               {isMyTurn && !mySubmission && currentQuestion.roundType === 'STANDARD' && (
                 <div className="bg-white/5 border border-white/10 rounded-[3rem] p-10 space-y-6">
-                  <Button 
-                    variant="primary" 
-                    className="w-full h-20 rounded-3xl text-lg" 
-                    disabled={session.requestedHint || session.hintVisible || isSubmitting}
-                    onClick={handleRequestHint}
-                  >
+                  <Button variant="primary" className="w-full h-20 rounded-3xl text-lg" disabled={session.requestedHint || session.hintVisible || isSubmitting} onClick={handleRequestHint}>
                     {session.hintVisible ? 'Hint Received' : session.requestedHint ? 'Pending Admin' : 'Request Hint'}
-                  </Button>
-                  <Button 
-                    variant="secondary" 
-                    className="w-full h-20 rounded-3xl text-lg" 
-                    onClick={() => handleSubmit('PASS')}
-                    disabled={isSubmitting}
-                  >
-                    Pass Node
                   </Button>
                 </div>
               )}
 
               {session.hintVisible && (
                 <div className="bg-indigo-600/10 border border-indigo-500/50 p-10 rounded-[3rem] backdrop-blur-3xl animate-in zoom-in">
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-indigo-400 mb-4">Neural Hint</p>
                     <p className="text-2xl font-bold text-slate-100 italic">"{currentQuestion.hint}"</p>
                 </div>
               )}
            </div>
 
            <div className="lg:col-span-8 space-y-8">
-              <Card className="bg-slate-900/80 border-white/10 p-12">
-                 <h2 className="text-4xl font-black text-white leading-tight tracking-tighter">{currentQuestion.text}</h2>
+              <Card className="bg-slate-900/80 border-white/10 p-12 overflow-hidden relative">
+                 {isVisual && currentQuestion.visualUri && (
+                    <img src={currentQuestion.visualUri} className="absolute inset-0 w-full h-full object-cover opacity-20" alt="Asset" />
+                 )}
+                 <h2 className="text-4xl font-black text-white leading-tight tracking-tighter relative z-10">{currentQuestion.text}</h2>
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
@@ -285,34 +256,15 @@ const TeamView: React.FC = () => {
                 )}
 
                 {currentQuestion.options.map((opt, i) => (
-                  <button 
-                    key={i} 
-                    disabled={!!mySubmission || !canPlay || isLocked} 
-                    onClick={() => setSelectedAnswer(i)} 
-                    className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${
-                      selectedAnswer === i 
-                      ? 'bg-white border-white text-slate-950 shadow-[0_0_50px_rgba(255,255,255,0.3)]' 
-                      : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'
-                    } ${!!mySubmission ? 'opacity-40' : ''}`}
-                  >
-                    <span className={`w-14 h-14 rounded-2xl flex items-center justify-center mr-8 font-black text-2xl ${
-                      selectedAnswer === i ? 'bg-slate-900 text-white' : 'bg-white/10 text-slate-500'
-                    }`}>
-                      {String.fromCharCode(65+i)}
-                    </span>
+                  <button key={i} disabled={!!mySubmission || !canPlay || isLocked} onClick={() => setSelectedAnswer(i)} className={`p-10 rounded-[3rem] border-2 text-left flex items-center transition-all duration-500 ${selectedAnswer === i ? 'bg-white border-white text-slate-950 shadow-xl' : 'bg-white/5 border-white/5 text-slate-300 hover:bg-white/10'}`}>
+                    <span className={`w-14 h-14 rounded-2xl flex items-center justify-center mr-8 font-black text-2xl ${selectedAnswer === i ? 'bg-slate-900 text-white' : 'bg-white/10 text-slate-500'}`}>{String.fromCharCode(65+i)}</span>
                     <span className="text-2xl font-bold tracking-tight">{opt}</span>
                   </button>
                 ))}
               </div>
 
               {!mySubmission && canPlay && !isLocked && (
-                <button 
-                  disabled={selectedAnswer === null || isSubmitting} 
-                  onClick={() => handleSubmit('ANSWER')} 
-                  className={`w-full py-12 text-white rounded-[4rem] text-4xl font-black uppercase tracking-tighter shadow-2xl transition-all duration-700 active:scale-95 ${
-                    selectedAnswer === null ? 'bg-slate-900/50 opacity-40' : isBuzzer ? 'bg-amber-600' : 'bg-indigo-600'
-                  }`}
-                >
+                <button disabled={selectedAnswer === null || isSubmitting} onClick={() => handleSubmit('ANSWER')} className={`w-full py-12 text-white rounded-[4rem] text-4xl font-black uppercase tracking-tighter shadow-2xl transition-all duration-700 active:scale-95 ${selectedAnswer === null ? 'bg-slate-900/50 opacity-40' : isBuzzer ? 'bg-amber-600' : isVisual ? 'bg-cyan-600' : 'bg-indigo-600'}`}>
                    {isBuzzer ? 'INITIATE BUZZ' : 'CONFIRM UPLINK'}
                 </button>
               )}
@@ -321,7 +273,6 @@ const TeamView: React.FC = () => {
                  <div className="bg-white/5 p-16 rounded-[4rem] border border-white/10 text-center space-y-6">
                     <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto animate-pulse" />
                     <h3 className="text-3xl font-black text-white uppercase italic tracking-widest">TRANSMISSION VALID</h3>
-                    <p className="text-slate-500 font-bold uppercase tracking-[0.4em] text-xs text-center">Awaiting System Verification</p>
                  </div>
               )}
            </div>
@@ -333,17 +284,12 @@ const TeamView: React.FC = () => {
        const isCorrect = mySubmission?.isCorrect;
        return (
          <div className="flex flex-col items-center justify-center h-[70vh] space-y-16 animate-in zoom-in max-w-5xl mx-auto">
-            <div className={`w-40 h-40 rounded-full flex items-center justify-center border-4 ${isCorrect ? 'bg-emerald-600 border-emerald-400' : 'bg-rose-700 border-rose-500 shadow-2xl'}`}>
+            <div className={`w-40 h-40 rounded-full flex items-center justify-center border-4 ${isCorrect ? 'bg-emerald-600 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.4)]' : 'bg-rose-700 border-rose-500 shadow-2xl'}`}>
                {isCorrect ? <CheckCircle2 className="w-24 h-24 text-white" /> : <AlertCircle className="w-24 h-24 text-white" />}
             </div>
-            
             <div className="text-center">
-              <h2 className={`text-8xl font-black uppercase italic tracking-tighter ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {isCorrect ? 'SUCCESS' : 'FAILURE'}
-              </h2>
-              <p className="text-slate-500 font-black tracking-[0.5em] uppercase text-xs mt-4">Node credits updated</p>
+              <h2 className={`text-8xl font-black uppercase italic tracking-tighter ${isCorrect ? 'text-emerald-400' : 'text-rose-400'}`}>{isCorrect ? 'SUCCESS' : 'FAILURE'}</h2>
             </div>
-
             <div className="bg-white/5 backdrop-blur-3xl p-12 rounded-[4rem] w-full flex justify-between items-center border border-white/10 shadow-2xl">
                <div>
                   <span className="text-slate-600 font-black uppercase tracking-[0.4em] text-[9px] block mb-2">Neural Balance</span>
@@ -360,10 +306,11 @@ const TeamView: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 font-sans w-full max-w-[1440px] mx-auto relative flex flex-col shadow-2xl overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(transparent_0%,#020617_100%)] pointer-events-none" />
-
       <header className="bg-slate-900/60 backdrop-blur-3xl p-10 flex justify-between items-center border-b border-white/10 sticky top-0 z-50">
          <div className="flex items-center gap-8">
-            <AIHostAvatar size="sm" />
+            <div className="w-16 h-16 rounded-full border border-indigo-500/30 flex items-center justify-center bg-indigo-500/5">
+                <BrainCircuit className="w-8 h-8 text-indigo-400" />
+            </div>
             <div>
                <p className="text-[10px] font-black uppercase text-indigo-500 mb-2 tracking-[0.3em]">Neural Uplink Stable</p>
                <p className="text-3xl font-black text-white tracking-tighter">{myTeam?.name}</p>
@@ -373,14 +320,12 @@ const TeamView: React.FC = () => {
             <LogOut className="w-8 h-8" />
          </button>
       </header>
-
       <main className="flex-grow p-12 overflow-y-auto custom-scrollbar relative z-10">
          {renderContent()}
       </main>
-
       <footer className="bg-slate-900/80 backdrop-blur-3xl border-t border-white/10 p-10 flex items-center gap-8">
          <MessageSquare className="w-10 h-10 text-indigo-400" />
-         <p className="text-sm text-slate-500 italic font-medium">"Sync verified. Maintaining active connection to Bodhini Core Architect node."</p>
+         <p className="text-sm text-slate-500 italic font-medium">"Maintaining active connection to Bodhini Core Architect node."</p>
       </footer>
     </div>
   );

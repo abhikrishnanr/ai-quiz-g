@@ -7,7 +7,7 @@ interface AIHostAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
-export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking, commentary, size = 'md' }) => {
+export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking, size = 'md' }) => {
   const sizeClasses = {
     sm: 'w-24 h-24',
     md: 'w-40 h-40',
@@ -19,109 +19,91 @@ export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking, commenta
 
   return (
     <div className={`relative flex items-center justify-center flex-col ${isLarge ? 'h-full w-full' : ''}`}>
-      {/* THE ENTITY EYE - Floating Interface */}
       <div className={`relative ${sizeClasses[size]} flex items-center justify-center pointer-events-none`}>
         
-        {/* SVG Core Layer - Rotating Technical Rings */}
-        <svg className="absolute inset-0 w-full h-full drop-shadow-[0_0_15px_rgba(99,102,241,0.5)]" viewBox="0 0 200 200">
+        {/* SVG Core Layer */}
+        <svg className="absolute inset-0 w-full h-full drop-shadow-[0_0_30px_rgba(99,102,241,0.6)]" viewBox="0 0 200 200">
            <defs>
              <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-               <stop offset="0%" style={{ stopColor: '#818cf8', stopOpacity: 0.8 }} />
-               <stop offset="100%" style={{ stopColor: '#c084fc', stopOpacity: 0.2 }} />
+               <stop offset="0%" style={{ stopColor: '#818cf8', stopOpacity: 0.9 }} />
+               <stop offset="100%" style={{ stopColor: '#c084fc', stopOpacity: 0.4 }} />
              </linearGradient>
+             <filter id="glow">
+                <feGaussianBlur stdDeviation="3.5" result="blur"/>
+                <feMerge>
+                    <feMergeNode in="blur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                </feMerge>
+             </filter>
            </defs>
            
-           {/* Radiating Background Lines */}
-           <g opacity="0.15">
-              {[...Array(12)].map((_, i) => (
-                <line 
-                  key={i}
-                  x1="100" y1="100" 
-                  x2={100 + Math.cos(i * (Math.PI/6)) * 95} 
-                  y2={100 + Math.sin(i * (Math.PI/6)) * 95} 
-                  stroke="#fff" 
-                  strokeWidth="0.5"
-                  className="animate-pulse"
-                  style={{ animationDelay: `${i * 0.1}s` }}
-                />
-              ))}
-           </g>
+           {/* AMPLITUDE RING - The requested pulsing ring around the avatar */}
+           <circle 
+              cx="100" cy="100" r="98" 
+              fill="none" 
+              stroke="#6366f1" 
+              strokeWidth={isSpeaking ? "5" : "1"} 
+              opacity={isSpeaking ? "0.8" : "0.1"}
+              className={`transition-all duration-150 ${isSpeaking ? 'neural-speaking' : ''}`}
+              style={{ 
+                strokeDasharray: isSpeaking ? "5 10" : "2 15",
+                filter: isSpeaking ? 'url(#glow)' : 'none'
+              }}
+           />
 
-           {/* Outer Rotating Gear Ring */}
-           <g className="animate-[spin_43s_linear_infinite] origin-center">
-             <circle cx="100" cy="100" r="92" fill="none" stroke="url(#ringGrad)" strokeWidth="0.5" strokeDasharray="1 15" />
+           {/* Outer Gear Ring - THICKENED as requested */}
+           <g className="animate-[spin_40s_linear_infinite] origin-center">
+             <circle cx="100" cy="100" r="90" fill="none" stroke="url(#ringGrad)" strokeWidth="6" strokeDasharray="15 25" />
            </g>
            
-           {/* Middle Rotating Dash Ring */}
-           <g className="animate-[spin_29s_linear_infinite_reverse] origin-center">
-             <circle cx="100" cy="100" r="78" fill="none" stroke="#6366f1" strokeWidth="1" strokeDasharray="15 30" opacity="0.4" />
+           {/* Middle Rotating Ring - THICKENED */}
+           <g className="animate-[spin_25s_linear_infinite_reverse] origin-center">
+             <circle cx="100" cy="100" r="76" fill="none" stroke="#6366f1" strokeWidth="4" strokeDasharray="30 20" opacity="0.6" />
            </g>
 
            {/* Inner Fast Rotation Ring */}
-           <g className="animate-[spin_11s_linear_infinite] origin-center">
-              <circle cx="100" cy="100" r="55" fill="none" stroke="#fff" strokeWidth="0.5" strokeDasharray="2 10" opacity="0.6" />
+           <g className="animate-[spin_12s_linear_infinite] origin-center">
+              <circle cx="100" cy="100" r="60" fill="none" stroke="#fff" strokeWidth="2" strokeDasharray="10 10" opacity="0.4" />
            </g>
 
-           {/* Central Pulse Ring */}
+           {/* Central Stabilization Ring */}
            <circle 
-              cx="100" cy="100" r="48" 
+              cx="100" cy="100" r="50" 
               fill="none" 
               stroke="#fff" 
-              strokeWidth={isSpeaking ? "2" : "0.5"} 
-              opacity={isSpeaking ? "0.8" : "0.2"} 
+              strokeWidth={isSpeaking ? "4" : "1"} 
+              opacity={isSpeaking ? "1" : "0.3"} 
               className="transition-all duration-300"
+              filter="url(#glow)"
            />
         </svg>
 
-        {/* Dynamic Scanning Crosshair */}
-        <div className="absolute inset-0 flex items-center justify-center animate-[spin_120s_linear_infinite]">
-            <div className="w-[120%] h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-            <div className="absolute w-[1px] h-[120%] bg-gradient-to-b from-transparent via-white/10 to-transparent" />
-        </div>
-
-        {/* Floating Data Nodes */}
-        <div className="absolute inset-0 animate-[spin_53s_linear_infinite]">
-           {[0, 45, 90, 135, 180, 225, 270, 315].map((deg, i) => (
-             <div 
-               key={i} 
-               className="absolute w-1 h-1 bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,0.8)]"
-               style={{
-                 top: '50%',
-                 left: '50%',
-                 transform: `rotate(${deg}deg) translateX(${size === 'xl' ? '135px' : '75px'})`
-               }}
-             />
-           ))}
-        </div>
-        
-        {/* REACTIVE CENTRAL CORE */}
+        {/* Central Core Element */}
         <div className="relative flex items-center justify-center z-10">
-           
-           {/* Audio Bloom (Glow Effect) */}
-           <div className={`absolute inset-0 rounded-full bg-indigo-500 blur-[50px] transition-all duration-200 ${isSpeaking ? 'opacity-70 scale-150' : 'opacity-20 scale-100'}`} />
+           {/* Bloom Light */}
+           <div className={`absolute inset-0 rounded-full bg-indigo-500 blur-[80px] transition-all duration-300 ${isSpeaking ? 'opacity-70 scale-150' : 'opacity-10 scale-100'}`} />
 
-           {/* The Core Orb */}
+           {/* Main Orb */}
            <div className={`
-              relative rounded-full bg-slate-950 border transition-all duration-300 ease-out flex items-center justify-center overflow-hidden
+              relative rounded-full bg-slate-950 border transition-all duration-500 ease-out flex items-center justify-center overflow-hidden
               ${isSpeaking 
-                 ? 'w-40 h-40 md:w-56 md:h-56 border-white/60 shadow-[0_0_80px_rgba(255,255,255,0.2)]' 
-                 : 'w-24 h-24 md:w-36 md:h-36 border-indigo-500/30 shadow-none'
+                 ? 'w-44 h-44 md:w-64 md:h-64 border-white shadow-[0_0_120px_rgba(255,255,255,0.4)]' 
+                 : 'w-24 h-24 md:w-40 md:h-40 border-indigo-500/40 shadow-none'
               }
            `}>
-              {/* Internal Neural Weave */}
-              <div className="absolute inset-[-50%] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(255,255,255,0.1)_180deg,transparent_360deg)] animate-[spin_2s_linear_infinite]" />
+              {/* Internal Scanning Glow */}
+              <div className="absolute inset-[-50%] bg-[conic-gradient(from_0deg,transparent_0deg,rgba(99,102,241,0.3)_180deg,transparent_360deg)] animate-[spin_2s_linear_infinite]" />
               
-              {/* Main White Pupil (Pulses on speech) */}
+              {/* Central Pupil */}
               <div className={`
-                 rounded-full transition-all duration-150 ease-in-out
+                 rounded-full transition-all duration-200 ease-in-out
                  ${isSpeaking 
-                    ? 'w-[85%] h-[85%] bg-white shadow-[0_0_100px_rgba(255,255,255,1)]' 
-                    : 'w-[15%] h-[15%] bg-indigo-400 shadow-[0_0_20px_rgba(99,102,241,1)]'
+                    ? 'w-[92%] h-[92%] bg-white shadow-[0_0_150px_rgba(255,255,255,1)]' 
+                    : 'w-[18%] h-[18%] bg-indigo-400 shadow-[0_0_30px_rgba(99,102,241,1)]'
                  }
               `} />
            </div>
         </div>
-
       </div>
     </div>
   );

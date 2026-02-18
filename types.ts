@@ -6,7 +6,7 @@ export enum QuizStatus {
   REVEALED = 'REVEALED'
 }
 
-export type RoundType = 'BUZZER' | 'STANDARD' | 'ASK_AI';
+export type RoundType = 'BUZZER' | 'STANDARD' | 'ASK_AI' | 'VISUAL';
 export type SubmissionType = 'ANSWER' | 'PASS';
 export type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
 export type AskAiState = 'IDLE' | 'LISTENING' | 'PROCESSING' | 'ANSWERING' | 'JUDGING' | 'COMPLETED';
@@ -22,6 +22,7 @@ export interface Question {
   roundType: RoundType;
   difficulty: Difficulty;
   hint: string;
+  visualUri?: string; // For image-based rounds
 }
 
 export interface Team {
@@ -61,6 +62,7 @@ export interface QuizSession {
   currentAskAiQuestion?: string;
   currentAskAiResponse?: string;
   askAiVerdict?: 'AI_CORRECT' | 'AI_WRONG';
+  groundingUrls?: { title: string; uri: string }[];
 }
 
 export interface APIResponse<T> {
