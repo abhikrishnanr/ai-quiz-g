@@ -13,31 +13,29 @@ interface AIHostAvatarProps {
 const WhiteGlowMaterial = new THREE.MeshStandardMaterial({
   color: new THREE.Color('#ffffff'),
   emissive: new THREE.Color('#ffffff'),
-  emissiveIntensity: 2,
+  emissiveIntensity: 4,
   toneMapped: false,
   roughness: 0,
   metalness: 0,
 });
 
 const TechRingMaterial = new THREE.MeshStandardMaterial({
-  color: new THREE.Color('#6366f1'), // Indigo
-  emissive: new THREE.Color('#4f46e5'),
-  emissiveIntensity: 1,
-  roughness: 0.2,
-  metalness: 0.8,
+  color: new THREE.Color('#3b82f6'), // Blue
+  emissive: new THREE.Color('#2563eb'),
+  emissiveIntensity: 2,
+  roughness: 0.1,
+  metalness: 0.9,
   transparent: true,
-  opacity: 0.4,
-  side: THREE.DoubleSide
+  opacity: 0.5,
+  side: THREE.DoubleSide,
+  blending: THREE.AdditiveBlending,
 });
 
 const DotMaterial = new THREE.MeshBasicMaterial({
-  color: new THREE.Color('#a5b4fc'),
-});
-
-const DashMaterial = new THREE.MeshBasicMaterial({
-  color: new THREE.Color('#818cf8'),
+  color: new THREE.Color('#60a5fa'),
   transparent: true,
-  opacity: 0.6
+  opacity: 0.8,
+  blending: THREE.AdditiveBlending
 });
 
 // -- Components --
@@ -51,51 +49,111 @@ const WhiteCore: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
     const time = state.clock.getElapsedTime();
     
     // Core Pulse
-    // If speaking, rapid erratic pulse. If idle, slow breathing.
     const baseScale = 1;
     let pulse = 0;
     
     if (isSpeaking) {
-        // Speech amplitude simulation
-        pulse = Math.sin(time * 15) * 0.15 + Math.cos(time * 30) * 0.1; 
-        meshRef.current.material.emissiveIntensity = 3 + Math.sin(time * 20) * 1;
+        pulse = Math.sin(time * 20) * 0.1 + Math.cos(time * 40) * 0.05; 
+        meshRef.current.material.emissiveIntensity = 4 + Math.sin(time * 25) * 2;
     } else {
-        // Idle breathing
-        pulse = Math.sin(time * 2) * 0.05;
-        meshRef.current.material.emissiveIntensity = 2 + Math.sin(time * 2) * 0.5;
+        pulse = Math.sin(time * 1.5) * 0.02;
+        meshRef.current.material.emissiveIntensity = 3 + Math.sin(time * 2) * 1;
     }
 
     const scale = baseScale + pulse;
     meshRef.current.scale.setScalar(scale);
     
-    // Outer Glow Shell - rotates and scales slightly differently
-    glowRef.current.scale.setScalar(scale * 1.4);
-    glowRef.current.rotation.z -= 0.01;
-    glowRef.current.rotation.x += 0.01;
+    // Outer Glow Shell
+    glowRef.current.scale.setScalar(scale * 1.6); // Tighter glow for smaller core
+    glowRef.current.rotation.z -= 0.02;
+    glowRef.current.rotation.x += 0.02;
   });
 
   return (
     <group>
-      {/* Solid intense core */}
+      {/* Smaller, intense core */}
       <mesh ref={meshRef} material={WhiteGlowMaterial}>
-        <icosahedronGeometry args={[0.8, 4]} />
+        <icosahedronGeometry args={[0.35, 8]} /> {/* Significantly smaller core */}
       </mesh>
       
       {/* Outer transparent glow shell */}
       <mesh ref={glowRef}>
-        <icosahedronGeometry args={[0.85, 2]} />
-        <meshBasicMaterial color="#4f46e5" transparent opacity={0.15} wireframe />
+        <icosahedronGeometry args={[0.45, 4]} />
+        <meshBasicMaterial color="#60a5fa" transparent opacity={0.2} wireframe blending={THREE.AdditiveBlending} />
       </mesh>
       
-      {/* Dynamic Point Light */}
-      <pointLight distance={8} decay={2} intensity={4} color="#ffffff" />
-      <pointLight distance={12} decay={2} intensity={2} color="#6366f1" />
+      {/* High Intensity Light */}
+      <pointLight distance={10} decay={2} intensity={5} color="#ffffff" />
+      <pointLight distance={15} decay={2} intensity={3} color="#3b82f6" />
     </group>
   );
 };
 
+// A dense cloud of particles to simulate the "Nebula" effect
+const DigitalNebula: React.FC = () => {
+  const points = useRef<THREE.Points>(null);
+  
+  const [positions, colors] = useMemo(() => {
+    const count = 4000;
+    const pos = new Float32Array(count * 3);
+    const cols = new Float32Array(count * 3);
+    const color1 = new THREE.Color('#3b82f6'); // Blue
+    const color2 = new THREE.Color('#ffffff'); // White
+    const color3 = new THREE.Color('#06b6d4'); // Cyan
+
+    for (let i = 0; i < count; i++) {
+      // Create a layered sphere effect
+      const r = 1.0 + Math.pow(Math.random(), 2) * 2.5; // Concentrated closer to center but spreading out
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+
+      const x = r * Math.sin(phi) * Math.cos(theta);
+      const y = r * Math.sin(phi) * Math.sin(theta);
+      const z = r * Math.cos(phi);
+
+      pos[i * 3] = x;
+      pos[i * 3 + 1] = y;
+      pos[i * 3 + 2] = z;
+
+      // Mix colors
+      const rand = Math.random();
+      const mixedColor = rand > 0.7 ? color2 : (rand > 0.4 ? color3 : color1);
+      
+      cols[i * 3] = mixedColor.r;
+      cols[i * 3 + 1] = mixedColor.g;
+      cols[i * 3 + 2] = mixedColor.b;
+    }
+    return [pos, cols];
+  }, []);
+
+  useFrame((state) => {
+    if(points.current) {
+        const t = state.clock.elapsedTime * 0.1;
+        points.current.rotation.y = t;
+        points.current.rotation.z = t * 0.5;
+    }
+  });
+
+  return (
+    <points ref={points}>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" count={positions.length / 3} array={positions} itemSize={3} />
+        <bufferAttribute attach="attributes-color" count={colors.length / 3} array={colors} itemSize={3} />
+      </bufferGeometry>
+      <pointsMaterial 
+        size={0.03} 
+        vertexColors 
+        transparent 
+        opacity={0.5} 
+        blending={THREE.AdditiveBlending} 
+        depthWrite={false} 
+      />
+    </points>
+  );
+};
+
 // A ring made of dashed segments
-const DashRing: React.FC<{ radius: number; count: number; width: number; height: number; speed: number; color?: string }> = ({ radius, count, width, height, speed, color }) => {
+const DashRing: React.FC<{ radius: number; count: number; width: number; height: number; speed: number; color?: string; opacity?: number }> = ({ radius, count, width, height, speed, color, opacity = 0.5 }) => {
     const groupRef = useRef<THREE.Group>(null);
     
     useFrame((_, delta) => {
@@ -111,12 +169,12 @@ const DashRing: React.FC<{ radius: number; count: number; width: number; height:
             segs.push(
                 <mesh key={i} position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]} rotation={[0, 0, angle]}>
                     <planeGeometry args={[width, height]} />
-                    <meshBasicMaterial color={color || '#818cf8'} side={THREE.DoubleSide} transparent opacity={0.6} />
+                    <meshBasicMaterial color={color || '#60a5fa'} side={THREE.DoubleSide} transparent opacity={opacity} blending={THREE.AdditiveBlending} />
                 </mesh>
             );
         }
         return segs;
-    }, [count, radius, width, height, color]);
+    }, [count, radius, width, height, color, opacity]);
 
     return <group ref={groupRef}>{segments}</group>;
 };
@@ -127,7 +185,7 @@ const DotRing: React.FC<{ radius: number; count: number; speed: number; size: nu
 
     useFrame((_, delta) => {
         if (groupRef.current) {
-            groupRef.current.rotation.z += speed * delta; // Direction controlled by sign of speed
+            groupRef.current.rotation.z += speed * delta;
         }
     });
 
@@ -152,46 +210,59 @@ const DotRing: React.FC<{ radius: number; count: number; speed: number; size: nu
 const ComplexOuterRig: React.FC = () => {
     const rigRef = useRef<THREE.Group>(null);
     
-    useFrame((_, delta) => {
+    useFrame((state) => {
         if (rigRef.current) {
-            // Slowly tumble the entire outer rig for 3D depth
-            rigRef.current.rotation.x = Math.sin(Date.now() * 0.0005) * 0.2;
-            rigRef.current.rotation.y = Math.cos(Date.now() * 0.0005) * 0.2;
+            // Complex multi-axis rotation for the whole system
+            const t = state.clock.elapsedTime * 0.1;
+            rigRef.current.rotation.x = Math.sin(t * 0.5) * 0.1;
+            rigRef.current.rotation.y = Math.cos(t * 0.3) * 0.15;
         }
     });
 
     return (
         <group ref={rigRef}>
-            {/* 1. Thick Glassy Ring */}
-            <mesh rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[2.8, 0.15, 16, 100]} />
-                <primitive object={TechRingMaterial} />
+            {/* 1. Main HUD Ring */}
+            <mesh>
+                <torusGeometry args={[2.5, 0.02, 16, 100]} />
+                <meshBasicMaterial color="#3b82f6" transparent opacity={0.3} blending={THREE.AdditiveBlending} />
             </mesh>
 
             {/* 2. Inner Pattern Ring (Dashes) - Clockwise */}
-            <DashRing radius={2.4} count={24} width={0.1} height={0.4} speed={0.2} color="#a5b4fc" />
+            <DashRing radius={1.8} count={32} width={0.05} height={0.3} speed={0.3} color="#93c5fd" opacity={0.6} />
 
             {/* 3. Outer Pattern Ring (Fine Dashes) - Counter-Clockwise */}
-            <DashRing radius={3.2} count={60} width={0.05} height={0.2} speed={-0.1} color="#4f46e5" />
+            <DashRing radius={2.8} count={80} width={0.02} height={0.15} speed={-0.15} color="#2563eb" opacity={0.4} />
 
             {/* 4. Dots Orbiting - Anti-clockwise */}
-            <DotRing radius={3.0} count={12} speed={-0.4} size={0.08} />
+            <DotRing radius={2.2} count={16} speed={-0.4} size={0.06} />
 
-            {/* 5. Angled Orbital Ring */}
-            <group rotation={[0.5, 0.5, 0]}>
+            {/* 5. Second Dot Ring - Fast */}
+            <DotRing radius={1.2} count={8} speed={0.8} size={0.04} />
+
+            {/* 6. Angled Orbital Ring 1 */}
+            <group rotation={[0.4, 0.4, 0]}>
                  <mesh>
-                    <torusGeometry args={[3.5, 0.02, 16, 100]} />
-                    <meshBasicMaterial color="#818cf8" transparent opacity={0.3} />
+                    <torusGeometry args={[3.2, 0.01, 16, 100]} />
+                    <meshBasicMaterial color="#60a5fa" transparent opacity={0.2} blending={THREE.AdditiveBlending} />
                  </mesh>
-                 <DotRing radius={3.5} count={3} speed={0.8} size={0.15} />
+                 <DotRing radius={3.2} count={4} speed={0.5} size={0.1} />
+            </group>
+
+             {/* 7. Angled Orbital Ring 2 */}
+             <group rotation={[-0.4, -0.4, 0]}>
+                 <mesh>
+                    <torusGeometry args={[3.0, 0.01, 16, 100]} />
+                    <meshBasicMaterial color="#a5b4fc" transparent opacity={0.2} blending={THREE.AdditiveBlending} />
+                 </mesh>
+                 <DashRing radius={3.0} count={12} width={0.05} height={0.4} speed={-0.2} color="#ffffff" opacity={0.1} />
             </group>
         </group>
     );
 };
 
 const AmplitudeSpikes: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
-    const count = 32;
-    const radius = 1.6;
+    const count = 48; // More spikes
+    const radius = 0.8; // Closer to the smaller core
     const bars = useRef<THREE.Mesh[]>([]);
 
     useFrame((state) => {
@@ -201,16 +272,15 @@ const AmplitudeSpikes: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
             let targetScale = 0.1;
             if (isSpeaking) {
                 // Noise function simulation
-                const noise = Math.sin(t * 20 + i * 0.5) * 0.5 + 0.5;
-                targetScale = 0.5 + noise * 1.5; // Scale between 0.5 and 2.0
+                const noise = Math.sin(t * 25 + i * 0.5) * 0.5 + 0.5;
+                targetScale = 0.2 + noise * 1.8; 
             }
-            bar.scale.y += (targetScale - bar.scale.y) * 0.2;
-            bar.rotation.z += 0.001; // subtle drift of individual bars? No, array rotation handles that.
+            bar.scale.y += (targetScale - bar.scale.y) * 0.25; // Snappier response
         });
     });
 
     return (
-        <group rotation={[0, 0, Math.PI / 4]}> {/* Tilted base angle */}
+        <group rotation={[0, 0, 0]}> 
             {new Array(count).fill(0).map((_, i) => {
                 const angle = (i / count) * Math.PI * 2;
                 return (
@@ -220,8 +290,8 @@ const AmplitudeSpikes: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
                         position={[Math.cos(angle) * radius, Math.sin(angle) * radius, 0]}
                         rotation={[0, 0, angle + Math.PI / 2]}
                     >
-                        <boxGeometry args={[0.08, 0.4, 0.02]} /> {/* Initial size, Y scaled by audio */}
-                        <meshBasicMaterial color="#c7d2fe" transparent opacity={0.8} />
+                        <boxGeometry args={[0.03, 0.3, 0.01]} />
+                        <meshBasicMaterial color="#93c5fd" transparent opacity={0.9} blending={THREE.AdditiveBlending} />
                     </mesh>
                 );
             })}
@@ -232,14 +302,17 @@ const AmplitudeSpikes: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
 const Scene: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
   return (
     <>
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={0.2} />
       
-      <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
+      <Float speed={1.5} rotationIntensity={0.1} floatIntensity={0.1}>
         
-        {/* The Central AI Brain */}
+        {/* Particle Cloud / Nebula */}
+        <DigitalNebula />
+
+        {/* The Central AI Brain (Smaller now) */}
         <WhiteCore isSpeaking={isSpeaking} />
 
-        {/* The Audio Reactive Layer */}
+        {/* The Audio Reactive Layer (Closer) */}
         <AmplitudeSpikes isSpeaking={isSpeaking} />
 
         {/* The Structural UI Layer */}
@@ -247,8 +320,8 @@ const Scene: React.FC<{ isSpeaking: boolean }> = ({ isSpeaking }) => {
 
       </Float>
 
-      <Sparkles count={40} scale={5} size={3} speed={0.4} opacity={0.5} color="#a5b4fc" />
-      <Stars radius={100} depth={50} count={1000} factor={4} saturation={0} fade speed={1} />
+      <Sparkles count={60} scale={6} size={2} speed={0.4} opacity={0.6} color="#60a5fa" />
+      <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={1} />
     </>
   );
 };
@@ -264,14 +337,14 @@ export const AIHostAvatar: React.FC<AIHostAvatarProps> = ({ isSpeaking = false, 
   return (
     <div className={`${sizeMap[size]} relative mx-auto`} style={{ minHeight: '300px' }}>
       {/* Background glow for integration */}
-      <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-[60px] animate-pulse pointer-events-none" />
+      <div className="absolute inset-0 bg-blue-500/10 rounded-full blur-[80px] animate-pulse pointer-events-none" />
       
       <Suspense fallback={
           <div className="w-full h-full flex items-center justify-center">
-              <div className="w-12 h-12 bg-white rounded-full animate-ping opacity-20" />
+              <div className="w-8 h-8 bg-blue-400 rounded-full animate-ping opacity-40" />
           </div>
       }>
-        <Canvas camera={{ position: [0, 0, 8], fov: 45 }} gl={{ antialias: true, alpha: true }}>
+        <Canvas camera={{ position: [0, 0, 7], fov: 50 }} gl={{ antialias: true, alpha: true, toneMapping: THREE.NoToneMapping }}>
             <Scene isSpeaking={isSpeaking} />
         </Canvas>
       </Suspense>
