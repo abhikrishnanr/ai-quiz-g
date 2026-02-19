@@ -47,11 +47,13 @@
         .animate-in { animation-duration: 0.5s; animation-timing-function: ease-out; animation-fill-mode: both; }
         .fade-in { animation-name: fadeIn; }
         .slide-in-from-bottom { animation-name: slideInBottom; }
+        .slide-in-from-bottom-4 { animation-name: slideInBottom4; }
         .slide-in-from-right { animation-name: slideInRight; }
         .zoom-in { animation-name: zoomIn; }
 
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         @keyframes slideInBottom { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes slideInBottom4 { from { transform: translateY(4px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes slideInRight { from { transform: translateX(50px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes zoomIn { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
@@ -68,6 +70,11 @@
         .neural-ring { animation: pulse-ring 4s infinite ease-in-out; }
         .neural-core-rotate { animation: rotate-core 20s infinite linear; }
         .neural-speaking { animation: pulse-ring 0.5s infinite ease-in-out !important; }
+
+        @keyframes mic-bar {
+            0%, 100% { transform: scaleY(0.4); opacity: 0.5; }
+            50% { transform: scaleY(1.2); opacity: 1; }
+        }
 
         /* Big Screen Specifics */
         .bg-grid-perspective {
@@ -96,32 +103,11 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
-        /* Entity Eye & Nebula */
-        @keyframes entity-wave-in {
-            0% { transform: scale(1.8) rotate(0deg); opacity: 0; }
-            30% { opacity: 0.6; }
-            100% { transform: scale(0.1) rotate(180deg); opacity: 0; }
-        }
-
         @keyframes nebula-drift {
             0% { transform: translate(0, 0) scale(1); }
             33% { transform: translate(30px, -50px) scale(1.1); }
             66% { transform: translate(-20px, 20px) scale(0.9); }
             100% { transform: translate(0, 0) scale(1); }
-        }
-
-        @keyframes twinkle {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.5); }
-        }
-
-        .entity-wave {
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            border-radius: 50%;
-            border: 1px solid rgba(99, 102, 241, 0.6);
-            animation: entity-wave-in 4s linear infinite;
-            box-shadow: 0 0 20px rgba(79, 70, 229, 0.2);
         }
     </style>
     <script>

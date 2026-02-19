@@ -5,7 +5,7 @@ import { API } from '../services/api';
 import { SFX } from '../services/sfx';
 import { QuizStatus } from '../types';
 import { Badge } from '../components/SharedUI';
-import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown, BrainCircuit, Search, ExternalLink, Eye, ChevronRight } from 'lucide-react';
+import { Lock as LockIcon, Power, Sparkles, Brain, Clock, Zap, Waves, ShieldCheck, Mic, ThumbsUp, ThumbsDown, BrainCircuit, Search, ExternalLink, Eye, ChevronRight, Volume2, ShieldAlert } from 'lucide-react';
 import { AIHostAvatar } from '../components/AIHostAvatar';
 import { HOST_SCRIPTS, AI_COMMENTS } from '../constants';
 
@@ -44,23 +44,18 @@ const DisplayView: React.FC = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
   
-  const [aiAnswerRevealed, setAiAnswerRevealed] = useState(false);
   const [askAiAnnounced, setAskAiAnnounced] = useState(false);
   
-  const lastQuestionIdRef = useRef<string | null>(null);
   const lastStatusRef = useRef<QuizStatus | null>(null);
   const lastSubmissionCountRef = useRef<number>(0);
   const lastPassedCountRef = useRef<number>(0);
-  const explanationPlayedRef = useRef<boolean>(false);
   const sfxPlayedRef = useRef<boolean>(false);
   const introPlayedRef = useRef<boolean>(false);
   const lastActiveTeamRef = useRef<string | null>(null);
-  
   const lastAskAiStateRef = useRef<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
-  const audioCacheRef = useRef<Record<string, string>>({});
 
   const currentQuestion = session?.currentQuestion;
   const activeTeam = session?.teams.find(t => t.id === session.activeTeamId);
@@ -133,7 +128,7 @@ const DisplayView: React.FC = () => {
        });
     }
 
-    // Special Ask AI Intro
+    // Ask AI Intro
     if (session.status === QuizStatus.LIVE && currentQuestion.roundType === 'ASK_AI' && !askAiAnnounced) {
         setAskAiAnnounced(true);
         const teamName = activeTeam ? activeTeam.name : "Team";
@@ -144,7 +139,7 @@ const DisplayView: React.FC = () => {
         });
     }
 
-    // 2. Announce Team Passing (Robust trigger)
+    // 2. Announce Team Passing
     if (session.passedTeamIds.length > lastPassedCountRef.current) {
         const justPassedId = session.passedTeamIds[session.passedTeamIds.length - 1];
         const passedTeam = session.teams.find(t => t.id === justPassedId);
@@ -160,7 +155,7 @@ const DisplayView: React.FC = () => {
     if (session.submissions.length > lastSubmissionCountRef.current) {
        const newSub = session.submissions[session.submissions.length - 1];
        const team = session.teams.find(t => t.id === newSub.teamId);
-       if (team && currentQuestion.roundType !== 'ASK_AI') { 
+       if (team && currentQuestion.roundType !== 'ASK_AI' && session.status !== QuizStatus.REVEALED) { 
            SFX.playLock();
            const lockText = `Answer locked by ${team.name}.`;
            API.getTTSAudio(lockText).then(audio => {
@@ -169,7 +164,7 @@ const DisplayView: React.FC = () => {
        }
     }
 
-    // 4. Reveal Results & Commentary (Meme -> Verdict)
+    // 4. Results Reveal
     if (session.status === QuizStatus.REVEALED && !sfxPlayedRef.current) {
        sfxPlayedRef.current = true;
        if (currentQuestion.roundType !== 'ASK_AI') {
@@ -192,7 +187,6 @@ const DisplayView: React.FC = () => {
                 setTimeout(async () => {
                     const memeAudio = await API.getTTSAudio(memeText);
                     const verdictAudio = await API.getTTSAudio(technicalFeedback);
-                    
                     if (memeAudio) {
                         playAudio(memeAudio, memeText, () => {
                             if (verdictAudio) setTimeout(() => playAudio(verdictAudio, technicalFeedback), 400);
@@ -211,6 +205,7 @@ const DisplayView: React.FC = () => {
     lastActiveTeamRef.current = session.activeTeamId;
   }, [session?.status, session?.submissions.length, session?.passedTeamIds.length, session?.activeTeamId, audioInitialized]);
 
+  // Ask AI Logic: Question then Answer
   useEffect(() => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI' || !audioInitialized) return;
     if (session.askAiState !== lastAskAiStateRef.current) {
@@ -219,11 +214,21 @@ const DisplayView: React.FC = () => {
              const teamName = activeTeam?.name || 'the team';
              API.getTTSAudio(`Thinking about the answer for ${teamName}.`).then(audio => audio && playAudio(audio, "Processing..."));
         }
-        if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) {
-             API.getTTSAudio(session.currentAskAiResponse).then(audio => {
-                 setAiAnswerRevealed(true); 
-                 if (audio) playAudio(audio, session.currentAskAiResponse);
-             });
+        if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse && session.currentAskAiQuestion) {
+             const repeatQuestion = `You asked: ${session.currentAskAiQuestion}`;
+             const answer = session.currentAskAiResponse;
+             
+             (async () => {
+                const qAudio = await API.getTTSAudio(repeatQuestion);
+                const aAudio = await API.getTTSAudio(answer);
+                if (qAudio) {
+                    playAudio(qAudio, repeatQuestion, () => {
+                        if (aAudio) setTimeout(() => playAudio(aAudio, answer), 500);
+                    });
+                } else if (aAudio) {
+                    playAudio(aAudio, answer);
+                }
+             })();
         }
         lastAskAiStateRef.current = session.askAiState;
     }
@@ -239,16 +244,17 @@ const DisplayView: React.FC = () => {
                   <div className="w-24 h-24 rounded-full border-4 border-indigo-500/30 flex items-center justify-center mb-8 shadow-[0_0_50px_rgba(99,102,241,0.4)] transition-all group-hover:scale-110">
                     <Power className="w-10 h-10 text-indigo-400 animate-pulse" />
                   </div>
-                  <h1 className="text-4xl font-display font-black text-white uppercase tracking-[0.2em] neon-text">Initialize Host</h1>
-                  <p className="text-slate-500 mt-4 uppercase tracking-widest text-xs">Tap to begin system check and instructions</p>
+                  <h1 className="text-4xl font-display font-black text-white uppercase tracking-[0.2em] neon-text">Initialize Bodhini</h1>
+                  <p className="text-slate-500 mt-4 uppercase tracking-widest text-xs">Tap to begin system check</p>
               </div>
           </div>
       );
   }
 
   const isQuestionVisible = !!currentQuestion && session.status !== QuizStatus.PREVIEW;
-  const lockingTeam = session.submissions.length > 0 ? session.teams.find(t => t.id === session.submissions[session.submissions.length - 1].teamId) : null;
-  const showLockedOverlay = (session.status === QuizStatus.LOCKED || lockingTeam) && currentQuestion?.roundType !== 'ASK_AI' && session.status !== QuizStatus.REVEALED;
+  const lastSubmission = session.submissions[session.submissions.length - 1];
+  const lockingTeam = session.status === QuizStatus.LOCKED ? session.teams.find(t => t.id === lastSubmission?.teamId) : null;
+  const showLockedOverlay = !!lockingTeam && session.status !== QuizStatus.REVEALED;
 
   return (
     <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative font-sans">
@@ -266,7 +272,7 @@ const DisplayView: React.FC = () => {
                    <span className="text-xs font-black uppercase tracking-[0.3em] text-emerald-400 font-display">System Active</span>
                 </div>
                 <div className="h-4 w-[1px] bg-white/10" />
-                <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">DUK <span className="text-indigo-500">AI QUIZ</span></h1>
+                <h1 className="text-lg font-display font-black uppercase tracking-wider text-slate-200">DUK <span className="text-indigo-500">BODHINI</span></h1>
              </div>
 
              {isQuestionVisible && (
@@ -293,31 +299,65 @@ const DisplayView: React.FC = () => {
                    <div className="h-full glass-card rounded-[4rem] border-white/5 bg-white/5 flex flex-col items-center justify-center text-center p-20 relative overflow-hidden">
                        <BrainCircuit className="w-40 h-40 text-indigo-500/30 mb-12 animate-pulse" />
                        <h2 className="text-6xl font-display font-black text-white uppercase tracking-tight mb-8">System Standby</h2>
-                       <p className="text-xl text-slate-500 font-mono tracking-widest uppercase">Initializing Rounds...</p>
+                       <p className="text-xl text-slate-500 font-mono tracking-widest uppercase tracking-[0.5em]">Initializing rounds...</p>
                    </div>
                 ) : (
                     <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
-                        <div className="absolute top-0 right-10 -mt-6 z-20">
-                            {activeTeam && (
-                                <div className="bg-indigo-600 shadow-2xl border-2 border-indigo-400 px-10 py-4 rounded-b-[2rem]">
-                                    <h2 className="text-3xl font-black text-white uppercase">{activeTeam.name}</h2>
+                        {/* Question Panel */}
+                        <div className="glass-card p-12 rounded-[4rem] border-l-[12px] border-indigo-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center relative overflow-hidden">
+                            {showLockedOverlay && (
+                                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl z-40 flex flex-col items-center justify-center animate-in fade-in">
+                                    <div className="relative mb-8">
+                                        <LockIcon className="w-24 h-24 text-rose-500 animate-pulse" />
+                                        <div className="absolute inset-0 w-full h-full border-4 border-rose-500/20 rounded-full animate-ping" />
+                                    </div>
+                                    <h2 className="text-5xl font-display font-black text-rose-500 uppercase tracking-widest mb-4">LOCKED</h2>
+                                    <p className="text-xl text-slate-400 font-mono tracking-widest uppercase">Response captured from {lockingTeam?.name}</p>
                                 </div>
                             )}
-                        </div>
-                        <div className="glass-card p-12 rounded-[4rem] border-l-[12px] border-indigo-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center">
+
+                            <div className="absolute top-0 right-10 -mt-6 z-20">
+                                {activeTeam && (
+                                    <div className="bg-indigo-600 shadow-2xl border-2 border-indigo-400 px-10 py-4 rounded-b-[2rem]">
+                                        <h2 className="text-3xl font-black text-white uppercase">{activeTeam.name}</h2>
+                                    </div>
+                                )}
+                            </div>
                             <h2 className="text-4xl md:text-5xl font-sans font-bold text-white leading-[1.3] drop-shadow-[0_0_30px_rgba(0,0,0,1)]">
                                 {currentQuestion.text}
                             </h2>
                         </div>
+
+                        {/* Options Grid */}
                         <div className="grid grid-cols-2 gap-8 h-[45%]">
-                            {currentQuestion.options.map((opt, i) => (
-                                <div key={i} className={`relative rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700 glass-card border-white/10 bg-white/5`}>
-                                    <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-black bg-white/10 text-indigo-300`}>
-                                        {String.fromCharCode(65+i)}
+                            {currentQuestion.options.map((opt, i) => {
+                                const isCorrect = session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer;
+                                const isSelectedByTeam = session.status === QuizStatus.REVEALED && lastSubmission?.answer === i;
+                                const isWrongSelection = isSelectedByTeam && !isCorrect;
+
+                                return (
+                                    <div key={i} className={`relative rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700 glass-card 
+                                        ${isCorrect ? 'bg-emerald-600/40 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.5)] scale-105 z-10' : 
+                                          isWrongSelection ? 'bg-rose-600/40 border-rose-400 shadow-[0_0_30px_rgba(225,29,72,0.3)]' : 
+                                          'border-white/10 bg-white/5'}`}>
+                                        
+                                        <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-black 
+                                            ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-white/10 text-indigo-300'}`}>
+                                            {String.fromCharCode(65+i)}
+                                        </div>
+                                        <span className={`text-xl md:text-2xl font-sans font-semibold tracking-tight 
+                                            ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                            {opt}
+                                        </span>
+
+                                        {isCorrect && (
+                                            <div className="absolute top-4 right-8 bg-emerald-500 text-white text-[10px] px-4 py-1 rounded-full font-black uppercase tracking-widest animate-bounce">
+                                                Correct
+                                            </div>
+                                        )}
                                     </div>
-                                    <span className="text-xl md:text-2xl font-sans font-semibold text-white tracking-tight">{opt}</span>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 )}
