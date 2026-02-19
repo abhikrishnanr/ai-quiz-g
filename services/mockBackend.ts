@@ -56,7 +56,6 @@ const passTurnInternal = (session: QuizSession) => {
 export const QuizService = {
   getSession: async (): Promise<QuizSession> => {
     let session = loadSession();
-    // Removed auto-pass timeout logic to give admin full control
     return session;
   },
 
@@ -95,14 +94,12 @@ export const QuizService = {
     session.currentAskAiQuestion = undefined;
     session.currentAskAiResponse = undefined;
     session.askAiVerdict = undefined;
+    session.groundingUrls = [];
 
-    // Logic for next round cycle (default rotation)
     if (question.roundType === 'STANDARD') session.nextRoundType = 'BUZZER';
     else if (question.roundType === 'BUZZER') session.nextRoundType = 'ASK_AI';
     else session.nextRoundType = 'STANDARD';
 
-    // For STANDARD/ASK_AI, we can auto-select first team or leave null for admin to pick.
-    // Let's select first team by default for convenience, but admin can change it in PREVIEW.
     if (question.roundType === 'STANDARD' || question.roundType === 'ASK_AI') {
       session.activeTeamId = session.teams[0].id;
     } else {
@@ -116,14 +113,8 @@ export const QuizService = {
   setActiveTeam: async (teamId: string): Promise<QuizSession> => {
       let session = loadSession();
       session.activeTeamId = teamId;
-      session.turnStartTime = Date.now(); // Reset timer
-      
-      // If team was passed, maybe unpass them? Assuming admin knows what they are doing.
-      // But typically we don't remove from passedIds unless reset. 
-      // However, if admin manually selects a passed team, they should be able to answer (override).
-      // Let's filter them out of passedIds if manually selected.
+      session.turnStartTime = Date.now(); 
       session.passedTeamIds = session.passedTeamIds.filter(id => id !== teamId);
-
       saveSession(session);
       return session;
   },
@@ -132,7 +123,6 @@ export const QuizService = {
     let session = loadSession();
     const question = session.currentQuestion;
     
-    // Check timeout for Standard round (30s)
     if (type === 'ANSWER' && question?.roundType === 'STANDARD' && session.turnStartTime) {
         const elapsed = (Date.now() - session.turnStartTime) / 1000;
         if (elapsed > 30) {
@@ -229,14 +219,11 @@ export const QuizService = {
     let session = loadSession();
     if (session.status === QuizStatus.LIVE) {
       session.isReading = false;
-      // Restart turn timer after reading completes for fairness.
       session.turnStartTime = Date.now();
     }
     saveSession(session);
     return session;
   },
-
-  // --- ASK AI SPECIFIC METHODS ---
 
   setAskAiState: async (state: AskAiState, payload?: any): Promise<QuizSession> => {
     let session = loadSession();
@@ -245,6 +232,7 @@ export const QuizService = {
     if (state === 'LISTENING') {
         session.currentAskAiResponse = undefined;
         session.askAiVerdict = undefined;
+        session.groundingUrls = [];
     }
     
     if (state === 'PROCESSING' && payload?.question) {
@@ -264,7 +252,6 @@ export const QuizService = {
     session.askAiState = 'COMPLETED';
     session.askAiVerdict = verdict;
 
-    // SCORING RULE: If AI is WRONG, Team gets +200 points.
     if (verdict === 'AI_WRONG' && session.activeTeamId) {
         const team = session.teams.find(t => t.id === session.activeTeamId);
         if (team) {

@@ -39,7 +39,6 @@ async function decodeAudioData(
 
 const DisplayView: React.FC = () => {
   const { session, loading } = useQuizSync();
-  const [turnTimeLeft, setTurnTimeLeft] = useState(30);
   const [commentary, setCommentary] = useState<string>("");
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [audioInitialized, setAudioInitialized] = useState(false);
@@ -53,6 +52,7 @@ const DisplayView: React.FC = () => {
   const introPlayedRef = useRef<boolean>(false);
   const lastActiveTeamRef = useRef<string | null>(null);
   const lastAskAiStateRef = useRef<string | null>(null);
+  const lastAskAiQuestionRef = useRef<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const activeSourceRef = useRef<AudioBufferSourceNode | null>(null);
@@ -205,34 +205,30 @@ const DisplayView: React.FC = () => {
     lastActiveTeamRef.current = session.activeTeamId;
   }, [session?.status, session?.submissions.length, session?.passedTeamIds.length, session?.activeTeamId, audioInitialized]);
 
-  // Ask AI Logic: Question then Answer
+  // Ask AI Sequence Logic: Display Q, Read Q, Wait for Response, Display A, Read A
   useEffect(() => {
     if (!session || !currentQuestion || currentQuestion.roundType !== 'ASK_AI' || !audioInitialized) return;
-    if (session.askAiState !== lastAskAiStateRef.current) {
-        if (session.askAiState === 'PROCESSING') {
-             SFX.stopAmbient();
-             const teamName = activeTeam?.name || 'the team';
-             API.getTTSAudio(`Thinking about the answer for ${teamName}.`).then(audio => audio && playAudio(audio, "Processing..."));
-        }
-        if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse && session.currentAskAiQuestion) {
-             const repeatQuestion = `You asked: ${session.currentAskAiQuestion}`;
-             const answer = session.currentAskAiResponse;
-             
-             (async () => {
-                const qAudio = await API.getTTSAudio(repeatQuestion);
-                const aAudio = await API.getTTSAudio(answer);
-                if (qAudio) {
-                    playAudio(qAudio, repeatQuestion, () => {
-                        if (aAudio) setTimeout(() => playAudio(aAudio, answer), 500);
-                    });
-                } else if (aAudio) {
-                    playAudio(aAudio, answer);
-                }
-             })();
-        }
-        lastAskAiStateRef.current = session.askAiState;
+
+    // Check for NEW question asked
+    if (session.currentAskAiQuestion && session.currentAskAiQuestion !== lastAskAiQuestionRef.current) {
+        lastAskAiQuestionRef.current = session.currentAskAiQuestion;
+        const readUserQuestion = `You asked: ${session.currentAskAiQuestion}. Excellent query! Let me process that for you.`;
+        
+        API.getTTSAudio(readUserQuestion).then(audio => {
+            if (audio) playAudio(audio, readUserQuestion);
+        });
     }
-  }, [session?.askAiState, audioInitialized]);
+
+    // Check for NEW answer received
+    if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse && session.askAiState !== lastAskAiStateRef.current) {
+        const answer = session.currentAskAiResponse;
+        API.getTTSAudio(answer).then(audio => {
+            if (audio) playAudio(audio, answer);
+        });
+    }
+
+    lastAskAiStateRef.current = session.askAiState;
+  }, [session?.askAiState, session?.currentAskAiQuestion, session?.currentAskAiResponse, audioInitialized]);
 
   if (loading || !session) return null;
 
@@ -255,6 +251,16 @@ const DisplayView: React.FC = () => {
   const lastSubmission = session.submissions[session.submissions.length - 1];
   const lockingTeam = session.status === QuizStatus.LOCKED ? session.teams.find(t => t.id === lastSubmission?.teamId) : null;
   const showLockedOverlay = !!lockingTeam && session.status !== QuizStatus.REVEALED;
+
+  // Main Text Logic for Ask AI
+  const getMainText = () => {
+    if (!currentQuestion) return "";
+    if (currentQuestion.roundType === 'ASK_AI') {
+        if (session.askAiState === 'ANSWERING' && session.currentAskAiResponse) return session.currentAskAiResponse;
+        if ((session.askAiState === 'PROCESSING' || session.askAiState === 'ANSWERING') && session.currentAskAiQuestion) return session.currentAskAiQuestion;
+    }
+    return currentQuestion.text;
+  };
 
   return (
     <div className="min-h-screen bg-[#020617] text-white overflow-hidden relative font-sans">
@@ -303,7 +309,7 @@ const DisplayView: React.FC = () => {
                    </div>
                 ) : (
                     <div className="h-full flex flex-col gap-8 animate-in zoom-in duration-500">
-                        {/* Question Panel */}
+                        {/* Main Interaction/Question Panel */}
                         <div className="glass-card p-12 rounded-[4rem] border-l-[12px] border-indigo-600 bg-white/5 shadow-2xl flex-grow flex flex-col items-center justify-center text-center relative overflow-hidden">
                             {showLockedOverlay && (
                                 <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-3xl z-40 flex flex-col items-center justify-center animate-in fade-in">
@@ -316,6 +322,13 @@ const DisplayView: React.FC = () => {
                                 </div>
                             )}
 
+                            {currentQuestion.roundType === 'ASK_AI' && session.askAiState === 'PROCESSING' && (
+                                <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-4 bg-indigo-600/20 px-8 py-3 rounded-full border border-indigo-500/30 animate-pulse">
+                                    <Search className="w-5 h-5 text-indigo-400" />
+                                    <span className="text-xs font-black uppercase tracking-widest">Bodhini is Researching...</span>
+                                </div>
+                            )}
+
                             <div className="absolute top-0 right-10 -mt-6 z-20">
                                 {activeTeam && (
                                     <div className="bg-indigo-600 shadow-2xl border-2 border-indigo-400 px-10 py-4 rounded-b-[2rem]">
@@ -323,42 +336,56 @@ const DisplayView: React.FC = () => {
                                     </div>
                                 )}
                             </div>
-                            <h2 className="text-4xl md:text-5xl font-sans font-bold text-white leading-[1.3] drop-shadow-[0_0_30px_rgba(0,0,0,1)]">
-                                {currentQuestion.text}
+                            
+                            <h2 className={`text-4xl md:text-5xl font-sans font-bold text-white leading-[1.3] drop-shadow-[0_0_30px_rgba(0,0,0,1)] transition-all duration-700 ${currentQuestion.roundType === 'ASK_AI' && session.askAiState === 'ANSWERING' ? 'text-indigo-200 scale-95 opacity-90' : ''}`}>
+                                {getMainText()}
                             </h2>
                         </div>
 
-                        {/* Options Grid */}
-                        <div className="grid grid-cols-2 gap-8 h-[45%]">
-                            {currentQuestion.options.map((opt, i) => {
-                                const isCorrect = session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer;
-                                const isSelectedByTeam = session.status === QuizStatus.REVEALED && lastSubmission?.answer === i;
-                                const isWrongSelection = isSelectedByTeam && !isCorrect;
+                        {/* Options Grid (Hidden for Ask AI except revealed state) */}
+                        {currentQuestion.roundType !== 'ASK_AI' && (
+                            <div className="grid grid-cols-2 gap-8 h-[45%]">
+                                {currentQuestion.options.map((opt, i) => {
+                                    const isCorrect = session.status === QuizStatus.REVEALED && i === currentQuestion.correctAnswer;
+                                    const isSelectedByTeam = session.status === QuizStatus.REVEALED && lastSubmission?.answer === i;
+                                    const isWrongSelection = isSelectedByTeam && !isCorrect;
 
-                                return (
-                                    <div key={i} className={`relative rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700 glass-card 
-                                        ${isCorrect ? 'bg-emerald-600/40 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.5)] scale-105 z-10' : 
-                                          isWrongSelection ? 'bg-rose-600/40 border-rose-400 shadow-[0_0_30px_rgba(225,29,72,0.3)]' : 
-                                          'border-white/10 bg-white/5'}`}>
-                                        
-                                        <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-black 
-                                            ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-white/10 text-indigo-300'}`}>
-                                            {String.fromCharCode(65+i)}
-                                        </div>
-                                        <span className={`text-xl md:text-2xl font-sans font-semibold tracking-tight 
-                                            ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
-                                            {opt}
-                                        </span>
-
-                                        {isCorrect && (
-                                            <div className="absolute top-4 right-8 bg-emerald-500 text-white text-[10px] px-4 py-1 rounded-full font-black uppercase tracking-widest animate-bounce">
-                                                Correct
+                                    return (
+                                        <div key={i} className={`relative rounded-[3.5rem] p-8 flex items-center gap-6 border transition-all duration-700 glass-card 
+                                            ${isCorrect ? 'bg-emerald-600/40 border-emerald-400 shadow-[0_0_50px_rgba(16,185,129,0.5)] scale-105 z-10' : 
+                                            isWrongSelection ? 'bg-rose-600/40 border-rose-400 shadow-[0_0_30px_rgba(225,29,72,0.3)]' : 
+                                            'border-white/10 bg-white/5'}`}>
+                                            
+                                            <div className={`w-12 h-12 rounded-[1.2rem] flex items-center justify-center text-2xl font-black 
+                                                ${isCorrect ? 'bg-emerald-500 text-white' : 'bg-white/10 text-indigo-300'}`}>
+                                                {String.fromCharCode(65+i)}
                                             </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                            <span className={`text-xl md:text-2xl font-sans font-semibold tracking-tight 
+                                                ${isCorrect ? 'text-white' : 'text-slate-200'}`}>
+                                                {opt}
+                                            </span>
+
+                                            {isCorrect && (
+                                                <div className="absolute top-4 right-8 bg-emerald-500 text-white text-[10px] px-4 py-1 rounded-full font-black uppercase tracking-widest animate-bounce">
+                                                    Correct
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        
+                        {/* Grounding URLS for Ask AI */}
+                        {currentQuestion.roundType === 'ASK_AI' && session.groundingUrls && session.groundingUrls.length > 0 && (
+                            <div className="flex flex-wrap gap-4 justify-center animate-in fade-in slide-in-from-bottom">
+                                {session.groundingUrls.map((link, idx) => (
+                                    <a key={idx} href={link.uri} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-white/5 border border-white/10 px-6 py-2 rounded-full hover:bg-white/10 transition-colors text-xs text-indigo-300">
+                                        <ExternalLink className="w-3 h-3" /> {link.title}
+                                    </a>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
              </div>
