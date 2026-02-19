@@ -3,13 +3,11 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty, AskAiState } from '../types';
 import { QuizService } from './mockBackend';
 
-if (!process.env.API_KEY) {
-    console.error("API_KEY is missing from environment variables.");
-}
+// Using the specific API Key provided by the user
+const API_KEY = "AIzaSyCndFesplBByK7zUeAsbeFWgi_8AVhDZiE";
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
+const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3_CHARON';
 
 type QueueItem = {
   text: string;
@@ -38,23 +36,30 @@ const saveToPersistentCache = (key: string, base64: string) => {
 };
 
 const processQueue = async () => {
-  if (isProcessingQueue || requestQueue.length === 0 || !process.env.API_KEY) return;
+  if (isProcessingQueue || requestQueue.length === 0) return;
   isProcessingQueue = true;
   
   const item = requestQueue.shift()!;
   const { text, resolve, isFallback } = item;
   
-  const safeText = text.length > 600 ? text.substring(0, 597) + "..." : text;
+  // Adding punctuation to slow down the AI naturally and make it more affectionate/expressive
+  const expressiveText = text
+    .replace(/\?/g, '... ?')
+    .replace(/\!/g, '... !')
+    .replace(/\./g, '... .');
+    
+  const safeText = expressiveText.length > 600 ? expressiveText.substring(0, 597) + "..." : expressiveText;
 
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: safeText }] }],
+      contents: [{ parts: [{ text: `Please say this in a warm, slow, and affectionate Indian female voice: ${safeText}` }] }],
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            prebuiltVoiceConfig: { voiceName: 'Kore' },
+            // Charon is a warm Indian female voice profile
+            prebuiltVoiceConfig: { voiceName: 'Charon' },
           },
         },
       },
@@ -79,9 +84,12 @@ const processQueue = async () => {
     resolve(undefined);
   } finally {
     isProcessingQueue = false;
-    if (requestQueue.length > 0) {
-        processQueue();
-    }
+    // Add a slight intentional delay between generations to prevent overlap
+    setTimeout(() => {
+        if (requestQueue.length > 0) {
+            processQueue();
+        }
+    }, 500);
   }
 };
 
@@ -103,7 +111,6 @@ export const API = {
   },
 
   generateQuestion: async (): Promise<QuizSession> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
     const session = await QuizService.getSession();
     const nextRound = session.nextRoundType;
 
@@ -237,8 +244,8 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    if (question.roundType === 'ASK_AI') return `Time for the Ask AI Challenge. ${activeTeamName}, what have you got for me?`;
-    if (question.roundType === 'VISUAL') return `Visual Round. Eyes on the screen, everyone! Identify the image for me.`;
+    if (question.roundType === 'ASK_AI') return `Time for the Ask AI Challenge. ${activeTeamName}, I am ready for your question!`;
+    if (question.roundType === 'VISUAL') return `Visual Round. Eyes on the screen, everyone! Identify this image for me.`;
     
     let prefix = "Let's move to the next question. ";
     if (question.roundType === 'STANDARD' && activeTeamName) {
@@ -247,8 +254,8 @@ export const API = {
         prefix = "Buzzer fingers ready! Everyone, this is for you. ";
     }
 
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
-    return `${prefix}${question.text} Your options are: ${opts}`;
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}... ${opt}`).join('. ');
+    return `${prefix}${question.text} ... Your options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => explanation,
@@ -261,18 +268,16 @@ export const API = {
   },
 
   generateAskAiResponse: async (userQuestion: string): Promise<QuizSession> => {
-    if (!process.env.API_KEY) throw new Error("API Key missing");
-
     try {
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `User Question: "${userQuestion}"\nSystem: You are Bodhini, an AI Quiz Host. Answer accurately but be friendly. Keep it under 30 words.`,
+            contents: `User Question: "${userQuestion}"\nSystem: You are Bodhini, an AI Quiz Host. Answer accurately but be very friendly and professional. Keep it under 30 words.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
         });
 
-        const aiText = response.text || "I'm sorry, I couldn't process that. Try again!";
+        const aiText = response.text || "I'm sorry, my neural links are a bit flickering. Could you try asking me that one more time?";
         const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         
         const links = grounding
@@ -284,7 +289,7 @@ export const API = {
         localStorage.setItem('DUK_QUIZ_SESSION_V2', JSON.stringify(session));
         return session;
     } catch (e) {
-        return QuizService.setAskAiState('ANSWERING', { response: "My neural links are flickering. Ask me one more time, please." });
+        return QuizService.setAskAiState('ANSWERING', { response: "I'm having a little trouble connecting to my central core. Would you mind repeating that question?" });
     }
   },
 
