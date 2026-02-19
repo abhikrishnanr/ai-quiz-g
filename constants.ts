@@ -12,32 +12,32 @@ export const COLORS = {
 };
 
 export const HOST_SCRIPTS = {
-  INTRO: "Digital University AI Quiz Platform online. Welcome teams. This competition consists of six diverse rounds: Standard, Buzzer, Ask AI, Visual, Rapid Fire, and The Ultimate Challenge. Good luck to all participants. Let's start the quiz!",
-  WARNING_10S: "Just 10 seconds remaining.",
-  TIME_UP: "Time is up. Let's move forward.",
-  ASK_AI_INTRO: "{team}, please ask your question now."
+  INTRO: "Hello everyone! I am Bodhini, the AI Quiz core of Digital University Kerala. I'm so excited to be your host today! We have an incredible competition ahead with six exciting rounds: Standard, Buzzer, Ask AI, Visual, Rapid Fire, and The Ultimate Challenge. Just a few rules to keep in mind: In the Buzzer round, speed is everything—the first to answer correctly takes the points, but be careful, as this is the only round with negative marking! And in our unique Ask AI round, if you manage to challenge me with a question I cannot answer, your team will earn double marks! I wish you all the very best of luck. Let's start the quiz!",
+  WARNING_10S: "Just 10 seconds remaining, better hurry!",
+  TIME_UP: "Time is up. Let's see what happens next.",
+  ASK_AI_INTRO: "Alright {team}, it is your turn to challenge me. Ask your question now, and remember, if I fail, you get double marks!"
 };
 
 export const AI_COMMENTS = {
   CORRECT: [
-    "കലക്കി! (Kalakki!)",
-    "പൊളിച്ചു! (Polichu!)",
-    "അടി സക്കെ! (Adi Sakke!)",
-    "കിടുവേ! (Kiduve!)",
-    "സംഭവം കളറായി! (Sambhavam Colour Aayi!)",
-    "ഒരു രക്ഷയുമില്ല! (Oru Rakshayumilla!)",
-    "എടാ മോനേ! (Eda Mone!)",
-    "മാസ്സ്! (Mass!)"
+    "കലക്കി! (Kalakki!) That was brilliant!",
+    "പൊളിച്ചു! (Polichu!) You're on fire!",
+    "അടി സക്കെ! (Adi Sakke!) Perfect answer!",
+    "കിടുവേ! (Kiduve!) What a performance!",
+    "സംഭവം കളറായി! (Sambhavam Colour Aayi!) Simply superb!",
+    "ഒരു രക്ഷയുമില്ല! (Oru Rakshayumilla!) You're unstoppable!",
+    "എടാ മോനേ! (Eda Mone!) That was impressive!",
+    "മാസ്സ്! (Mass!) Absolute class!"
   ],
   WRONG: [
-    "എന്തോന്നടേ ഇത്? (Enthonnade Ithu?)",
-    "അയ്യേ... മോശം! (Ayye... Mosham!)",
-    "നീ പോ മോനേ ദിനേശാ. (Nee Po Mone Dinesha.)",
-    "ചതി കുലേ! (Chathi Kule!)",
-    "ശോകം... വലിയ ശോകം. (Shokam... Valiya Shokam.)",
-    "വിവരമില്ലായ്മ ഒരു കുറ്റമല്ല. (Vivaramillayma Oru Kuttamalla.)",
-    "സെൻസ് വേണം, സെൻസിബിലിറ്റി വേണം. (Sense Venam, Sensibility Venam.)",
-    "അളിയാ... തെറ്റിപ്പോയി. (Aliya... Thettippoyi.)"
+    "എന്തോന്നടേ ഇത്? (Enthonnade Ithu?) Better luck next time.",
+    "അയ്യേ... മോശം! (Ayye... Mosham!) Not quite what we were looking for.",
+    "നീ പോ മോനേ ദിനേശാ. (Nee Po Mone Dinesha.) That wasn't it.",
+    "ചതി കുലേ! (Chathi Kule!) Oh, so close yet so far!",
+    "ശോകം... വലിയ ശോകം. (Shokam... Valiya Shokam.) Don't lose hope!",
+    "വിവരമില്ലായ്മ ഒരു കുറ്റമല്ല. (Vivaramillayma Oru Kuttamalla.) Let's learn from this.",
+    "സെൻസ് വേണം, സെൻസിബിലിറ്റി വേണം. (Sense Venam, Sensibility Venam.) Think deeper next time!",
+    "അളിയാ... തെറ്റിപ്പോയി. (Aliya... Thettippoyi.) Let's try to get the next one!"
   ]
 };
 

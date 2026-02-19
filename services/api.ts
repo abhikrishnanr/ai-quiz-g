@@ -3,7 +3,6 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { Question, QuizSession, QuizStatus, Submission, SubmissionType, RoundType, Difficulty, AskAiState } from '../types';
 import { QuizService } from './mockBackend';
 
-// Ensure API Key is present. The SDK will throw if this is missing, but we can fail fast.
 if (!process.env.API_KEY) {
     console.error("API_KEY is missing from environment variables.");
 }
@@ -15,7 +14,7 @@ const STORAGE_KEY_TTS = 'DUK_TTS_CACHE_GEMINI_V3';
 type QueueItem = {
   text: string;
   resolve: (value: string | undefined) => void;
-  isFallback?: boolean; // Flag to indicate if this is a retry
+  isFallback?: boolean;
 };
 
 const requestQueue: QueueItem[] = [];
@@ -45,8 +44,7 @@ const processQueue = async () => {
   const item = requestQueue.shift()!;
   const { text, resolve, isFallback } = item;
   
-  // Safety: Truncate extremely long text to avoid 500 errors and ensure speed
-  const safeText = text.length > 400 ? text.substring(0, 397) + "..." : text;
+  const safeText = text.length > 600 ? text.substring(0, 597) + "..." : text;
 
   try {
     const response = await ai.models.generateContent({
@@ -56,7 +54,6 @@ const processQueue = async () => {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
           voiceConfig: {
-            // Using Kore as default, it generally handles multi-lingual well.
             prebuiltVoiceConfig: { voiceName: 'Kore' },
           },
         },
@@ -66,24 +63,13 @@ const processQueue = async () => {
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     
     if (base64Audio) {
-      // Cache ONLY if it's not a specific unique dynamic response (like Ask AI or feedback)
-      // Actually, we can cache everything by text key.
       const cacheKey = text.trim().toLowerCase();
       saveToPersistentCache(cacheKey, base64Audio);
       resolve(base64Audio);
     } else {
-      console.warn("Gemini TTS response missing audio data for text:", safeText);
-      // Fallback Logic: If audio is missing (maybe due to script), try English only fallback if not already fallback
       if (!isFallback) {
-         console.log("Attempting TTS fallback with simplified text...");
-         // Remove non-ascii characters (rough approximation for stripping Malayalam/complex scripts)
          const englishOnly = text.replace(/[^\x00-\x7F]/g, "").trim() || "Processing response.";
-         if (englishOnly.length > 0 && englishOnly !== text) {
-             // Re-queue at the front
-             requestQueue.unshift({ text: englishOnly, resolve, isFallback: true });
-         } else {
-             resolve(undefined);
-         }
+         requestQueue.unshift({ text: englishOnly, resolve, isFallback: true });
       } else {
          resolve(undefined);
       }
@@ -93,7 +79,6 @@ const processQueue = async () => {
     resolve(undefined);
   } finally {
     isProcessingQueue = false;
-    // Immediate check for next item
     if (requestQueue.length > 0) {
         processQueue();
     }
@@ -125,7 +110,7 @@ export const API = {
     if (nextRound === 'ASK_AI') {
         const dummyQuestion: Question = {
             id: `ask_ai_${Date.now()}`,
-            text: "Ask AI Round: Challenge the AI with a live search question.",
+            text: "Ask AI Round: Challenge Bodhini with a live search question.",
             options: [],
             correctAnswer: -1,
             explanation: "",
@@ -142,7 +127,7 @@ export const API = {
         try {
             const imgPromptResponse = await ai.models.generateContent({
                 model: 'gemini-3-pro-preview',
-                contents: "Describe a futuristic piece of technology or a complex AI concept (like a neural processor or a quantum circuit). Provide the name, a multiple choice set, and a very short explanation (max 20 words).",
+                contents: "Describe a futuristic piece of technology or a complex AI concept. Provide the name, a multiple choice set, and a very short explanation (max 20 words).",
                 config: {
                     responseMimeType: "application/json",
                     responseSchema: {
@@ -162,7 +147,7 @@ export const API = {
             
             const imageGen = await ai.models.generateContent({
                 model: 'gemini-2.5-flash-image',
-                contents: [{ text: `A photorealistic, cinematic close-up of ${data.imagePrompt}. High tech, blueprint style, neon accents, dark background.` }],
+                contents: [{ text: `A photorealistic close-up of ${data.imagePrompt}. High tech, blueprint style.` }],
                 config: { imageConfig: { aspectRatio: "16:9" } }
             });
             
@@ -252,16 +237,18 @@ export const API = {
   },
 
   formatQuestionForSpeech: (question: Question, activeTeamName?: string): string => {
-    if (question.roundType === 'ASK_AI') return `Ask AI Round. ${activeTeamName}, challenge me with a question.`;
-    if (question.roundType === 'VISUAL') return `Visual Round. Look at the screen and identify the image.`;
+    if (question.roundType === 'ASK_AI') return `Time for the Ask AI Challenge. ${activeTeamName}, what have you got for me?`;
+    if (question.roundType === 'VISUAL') return `Visual Round. Eyes on the screen, everyone! Identify the image for me.`;
     
-    let prefix = "";
+    let prefix = "Let's move to the next question. ";
     if (question.roundType === 'STANDARD' && activeTeamName) {
-        prefix = `Question for ${activeTeamName}. `;
+        prefix = `Alright, this question is for ${activeTeamName}. `;
+    } else if (question.roundType === 'BUZZER') {
+        prefix = "Buzzer fingers ready! Everyone, this is for you. ";
     }
 
-    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}. ${opt}`).join('. ');
-    return `${prefix}${question.text} Options are: ${opts}`;
+    const opts = question.options.map((opt, i) => `Option ${String.fromCharCode(65+i)}: ${opt}`).join('. ');
+    return `${prefix}${question.text} Your options are: ${opts}`;
   },
 
   formatExplanationForSpeech: (explanation: string, isCorrect?: boolean): string => explanation,
@@ -279,16 +266,15 @@ export const API = {
     try {
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
-            contents: `User Question: "${userQuestion}"\nSystem: You are an AI Quiz Host. Answer the question accurately but keep it extremely concise (max 25 words). One short sentence is best. Do not use complex formatting.`,
+            contents: `User Question: "${userQuestion}"\nSystem: You are Bodhini, an AI Quiz Host. Answer accurately but be friendly. Keep it under 30 words.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
         });
 
-        const aiText = response.text || "I was unable to retrieve a valid response.";
+        const aiText = response.text || "I'm sorry, I couldn't process that. Try again!";
         const grounding = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
         
-        // Extract links for citations
         const links = grounding
             .filter((chunk: any) => chunk.web)
             .map((chunk: any) => ({ title: chunk.web.title, uri: chunk.web.uri }));
@@ -298,7 +284,7 @@ export const API = {
         localStorage.setItem('DUK_QUIZ_SESSION_V2', JSON.stringify(session));
         return session;
     } catch (e) {
-        return QuizService.setAskAiState('ANSWERING', { response: "I am having trouble connecting. Please ask again." });
+        return QuizService.setAskAiState('ANSWERING', { response: "My neural links are flickering. Ask me one more time, please." });
     }
   },
 
